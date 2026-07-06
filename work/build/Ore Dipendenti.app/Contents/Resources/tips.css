@@ -1,0 +1,19 @@
+.tips-form { padding: 22px; display: grid; grid-template-columns: 1fr 1.3fr 1fr auto; align-items: end; gap: 14px; }
+.tips-form .button { height: 48px; }
+.money-input { position: relative; }
+.money-input span { position: absolute; left: 14px; top: 13px; z-index: 1; font-weight: 850; color: var(--brand); }
+.money-input input { padding-left: 34px; }
+.tips-result { margin-top: 18px; }
+.tips-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.tips-card { padding: 18px; border-radius: 15px; background: white; border: 1px solid var(--line); }
+.tips-card span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.tips-card strong { font-size: 25px; }
+.tips-amount { color: var(--brand); font-size: 17px; font-weight: 850; }
+.tips-note { padding: 14px 18px; margin-bottom: 18px; border-radius: 12px; background: var(--brand2); color: var(--brand); font-size: 13px; }
+@media (max-width: 850px) {
+  .tips-form { grid-template-columns: 1fr 1fr; }
+  .tips-form .button { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .tips-form, .tips-summary { grid-template-columns: 1fr; }
+}

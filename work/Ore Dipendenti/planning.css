@@ -1,0 +1,20 @@
+.planning-toolbar { padding: 18px; display: grid; grid-template-columns: 1fr 1.2fr auto; align-items: end; gap: 14px; margin-bottom: 18px; }
+.planning-toolbar .button { height: 48px; }
+.planning-form { margin-bottom: 18px; }
+.planning-list { margin-top: 18px; }
+.planned-suggestions { margin-bottom: 18px; display: grid; gap: 10px; }
+.planned-card { padding: 18px; border-radius: 16px; border: 1px solid #afd5ca; background: #e7f4ef; }
+.planned-card.programmed { border-color: #d1b96c; background: #fff8df; }
+.planned-card-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.planned-card-title { display: flex; flex-direction: column; gap: 4px; }
+.planned-card-title small { color: var(--muted); }
+.planned-card .actions { margin-top: 12px; }
+.status-pill { display: inline-flex; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 850; background: #edf1ee; color: #536561; }
+.status-pill.confirmed { background: #dff2e8; color: #126b63; }
+.status-pill.modified { background: #fff0cf; color: #8a5b00; }
+.status-pill.pending { background: #edf1ee; color: #536561; }
+.mode-select { width: auto; min-width: 125px; height: 34px; font-size: 12px; padding: 0 8px; }
+@media (max-width: 760px) {
+  .planning-toolbar { grid-template-columns: 1fr; }
+  .planned-card-head { align-items: flex-start; flex-direction: column; }
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ore Dipendenti — Nuova base</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><div><small>GESTIONE PRESENZE</small><h1>Ore Dipendenti</h1></div><div id="systemStatus" class="status ok">Sistema attivo</div></header>
+  <nav>
+    <button type="button" data-page="entry" class="active">Inserisci</button>
+    <button type="button" data-page="summary">Riepilogo</button>
+    <button type="button" data-page="tips">Mance</button>
+    <button type="button" data-page="manage">Gestione</button>
+  </nav>
+  <main>
+    <section id="page-entry" class="page active">
+      <div class="title-row"><div><small>NUOVA REGISTRAZIONE</small><h2>Inserisci un turno</h2></div><button type="button" id="showAbsence" class="secondary">Registra un’assenza</button></div>
+      <div id="entrySetup" class="notice hidden">Aggiungi almeno un dipendente e un negozio nella sezione Gestione.</div>
+      <div id="shiftPanel" class="card grid">
+        <label class="span-2">Dipendente<select id="shiftEmployee"></select></label>
+        <label>Data<input id="shiftDate" type="date"></label>
+        <label>Negozio<select id="shiftStore"></select></label>
+        <div class="span-2 intervals-box"><div class="interval-head"><div><strong>Orari</strong><p>Ogni intervallo conta come un turno.</p></div><button type="button" id="addInterval" class="secondary">+ Intervallo</button></div><div id="intervalList"></div></div>
+        <label class="span-2">Nota facoltativa<input id="shiftNote" maxlength="120"></label>
+        <div id="duration" class="duration span-2">Durata: —</div>
+        <div id="shiftError" class="error span-2 hidden"></div>
+        <div class="actions span-2"><button type="button" id="clearShift" class="secondary">Pulisci</button><button type="button" id="saveShift" class="primary">Salva turno</button></div>
+      </div>
+      <div id="absencePanel" class="card grid hidden">
+        <label class="span-2">Dipendente<select id="absenceEmployee"></select></label>
+        <label>Data<input id="absenceDate" type="date"></label>
+        <label>Tipo<select id="absenceType"><option>Malattia</option><option>Ferie</option><option>Ingiustificata</option></select></label>
+        <label class="span-2">Nota facoltativa<input id="absenceNote" maxlength="120"></label>
+        <div id="absenceError" class="error span-2 hidden"></div>
+        <div class="actions span-2"><button type="button" id="cancelAbsence" class="secondary">Torna ai turni</button><button type="button" id="saveAbsence" class="primary">Salva assenza</button></div>
+      </div>
+      <div id="receipt" class="receipt hidden"></div>
+    </section>
+
+    <section id="page-summary" class="page">
+      <div class="title-row"><div><small>CONTROLLO ORE</small><h2>Riepilogo</h2></div><button type="button" id="downloadExcel" class="primary">Scarica Excel</button></div>
+      <div class="card filters">
+        <label>Dipendente<select id="summaryEmployee"></select></label>
+        <label>Periodo<select id="period"><option value="week">Settimana corrente</option><option value="month" selected>Mese corrente</option><option value="year">Anno corrente</option><option value="custom">Personalizzato</option></select></label>
+        <label>Dal<input id="fromDate" type="date"></label><label>Al<input id="toDate" type="date"></label>
+      </div>
+      <details class="card export-options"><summary>Dipendenti da includere nell’Excel</summary><label class="check"><input id="exportAll" type="checkbox" checked> Tutti</label><div id="exportEmployees" class="checks"></div></details>
+      <div id="stats" class="stats"></div>
+      <div class="card table-card"><h3>Ore per dipendente e negozio</h3><div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Negozio</th><th>Turni</th><th>Ore</th></tr></thead><tbody id="aggregateRows"></tbody></table></div></div>
+      <div class="card table-card"><h3>Turni registrati</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Negozio</th><th>Orari</th><th>Ore</th><th></th></tr></thead><tbody id="shiftRows"></tbody></table></div></div>
+      <div class="card table-card"><h3>Assenze</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Tipo</th><th>Nota</th><th></th></tr></thead><tbody id="absenceRows"></tbody></table></div></div>
+    </section>
+
+    <section id="page-tips" class="page">
+      <div class="title-row"><div><small>CALCOLO MENSILE</small><h2>Divisione mance</h2></div></div>
+      <div class="card filters tips-filter"><label>Mese<input id="tipsMonth" type="month"></label><label>Negozio<select id="tipsStore"></select></label><label>Totale €<input id="tipsTotal" type="number" min="0.01" step="0.01"></label><button type="button" id="calculateTips" class="primary">Calcola</button></div>
+      <div id="tipsError" class="error hidden"></div><div id="tipsResult"></div>
+    </section>
+
+    <section id="page-manage" class="page">
+      <div class="title-row"><div><small>CONFIGURAZIONE</small><h2>Dipendenti e negozi</h2></div></div>
+      <div class="manage-grid">
+        <div class="card"><h3>Dipendenti <span id="employeeCount"></span></h3><div class="add-row"><input id="employeeName" placeholder="Nome e cognome" maxlength="50"><button type="button" id="addEmployee" class="primary">Aggiungi</button></div><div id="employeeList"></div></div>
+        <div class="card"><h3>Negozi <span id="storeCount"></span></h3><div class="add-row"><input id="storeName" placeholder="Nome negozio" maxlength="50"><button type="button" id="addStore" class="primary">Aggiungi</button></div><div id="storeList"></div></div>
+      </div>
+      <div class="card backup"><div><h3>Backup</h3><p>Salva periodicamente una copia dei dati.</p></div><div class="actions"><button type="button" id="saveBackup" class="secondary">Salva backup</button><label class="secondary file-label">Ripristina<input id="restoreBackup" type="file" accept="application/json"></label></div></div>
+    </section>
+  </main>
+  <footer><span id="saveStatus">Nessuna modifica</span> · Versione nuova 1.0</footer>
+  <script src="xlsx.js"></script><script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+ORE DIPENDENTI — VERSIONE WEB 2.0
+
+COME INIZIARE
+1. Sposta la cartella “Ore Dipendenti Web” nella posizione definitiva.
+2. Non rinominare o spostare più la cartella dopo aver iniziato a inserire dati.
+3. Apri “Avvia Ore Dipendenti.command” con un doppio clic.
+
+L’app si apre nel browser ma non richiede Internet e non invia dati online.
+I dati vengono conservati localmente dal browser su questo Mac.
+
+BACKUP
+Usa periodicamente Gestione > Salva backup.
+Per recuperare dati da una versione precedente usa Gestione > Ripristina backup.
+
+Se macOS blocca il launcher al primo avvio:
+- fai clic destro su “Avvia Ore Dipendenti.command”;
+- scegli Apri;
+- conferma nuovamente Apri.

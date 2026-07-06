@@ -1,0 +1,10 @@
+.filters select { height: 42px; font-size: 14px; }
+#summaryEmployee { min-width: 190px; }
+#periodPreset { min-width: 165px; }
+.filters input:disabled { background: #eef2ef; color: #536561; opacity: 1; }
+@media (max-width: 1000px) and (min-width: 761px) {
+  .summary-head { align-items: stretch; flex-direction: column; }
+}
+@media (max-width: 760px) {
+  #summaryEmployee, #periodPreset { min-width: 0; }
+}

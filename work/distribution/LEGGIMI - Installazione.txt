@@ -1,0 +1,14 @@
+ORE DIPENDENTI — APP DESKTOP PER MAC
+
+INSTALLAZIONE
+1. Trascina “Ore Dipendenti.app” nella cartella Applicazioni.
+2. Apri l’app dalla cartella Applicazioni.
+3. Se macOS mostra un avviso al primo avvio, fai clic destro sull’app, scegli “Apri” e conferma.
+
+TRASFERIMENTO DEI DATI DALLA VERSIONE PRECEDENTE
+1. Apri la vecchia versione.
+2. Vai in Gestione e premi “Salva backup”.
+3. Apri la nuova app desktop.
+4. Vai in Gestione, premi “Ripristina backup” e scegli il file appena salvato.
+
+L’app conserva i dati localmente sul Mac. Esegui periodicamente un backup.
