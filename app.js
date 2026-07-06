@@ -1,10 +1,10 @@
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'ore-dipendenti-clean-v1';
   var MAX_EMPLOYEES = 15;
   var MAX_STORES = 5;
-  var data = loadData();
+  var storage = window.StaffPlannerStorage;
+  var data = storage.loadData();
   var editingShiftId = '';
   var editingAbsenceId = '';
   var intervals = [{ start: '', end: '' }];
@@ -16,24 +16,15 @@
   function today() { return inputDate(new Date()); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
   function euro(cents) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100); }
-  function defaultData() { return { employees: [], stores: [], shifts: [], absences: [] }; }
-  function normalize(value) {
-    var clean = value && typeof value === 'object' ? value : defaultData();
-    ['employees', 'stores', 'shifts', 'absences'].forEach(function (key) { if (!Array.isArray(clean[key])) clean[key] = []; });
-    return clean;
-  }
-  function loadData() { try { return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY))); } catch (e) { return defaultData(); } }
   function commit() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (storage.saveData(data)) {
       byId('saveStatus').textContent = 'Dati salvati alle ' + new Date().toLocaleTimeString('it-IT');
       byId('saveStatus').style.color = '#126b63';
       return true;
-    } catch (e) {
-      byId('saveStatus').textContent = 'Errore: il browser non consente il salvataggio';
-      byId('saveStatus').style.color = '#a83a34';
-      return false;
     }
+    byId('saveStatus').textContent = 'Errore: il browser non consente il salvataggio';
+    byId('saveStatus').style.color = '#a83a34';
+    return false;
   }
   function employeeName(employeeId) { var x = data.employees.find(function (e) { return e.id === employeeId; }); return x ? x.name : '—'; }
   function storeName(storeId) { var x = data.stores.find(function (s) { return s.id === storeId; }); return x ? x.name : '—'; }
@@ -188,9 +179,8 @@
   }
   function renderExportEmployees() { byId('exportEmployees').innerHTML = data.employees.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }).map(function (x) { return '<label class="check"><input type="checkbox" class="export-employee" value="' + x.id + '"> ' + escapeHtml(x.name) + '</label>'; }).join(''); }
 
-  function download(blob, name) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); }
-  function backup() { download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'backup-ore-' + today() + '.json'); }
-  function restore(file) { var reader = new FileReader(); reader.onload = function () { try { var parsed = normalize(JSON.parse(reader.result)); if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; commit(); renderAll(); resetShift(); } catch (e) { alert('Backup non valido.'); } }; reader.readAsText(file); }
+  function backup() { storage.downloadBackup(data, 'backup-ore-' + today() + '.json'); }
+  function restore(file) { storage.restoreBackup(file, function (parsed) { if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; commit(); renderAll(); resetShift(); }, function () { alert('Backup non valido.'); }); }
   function exportExcel() { var ids = byId('exportAll').checked ? null : Array.from(document.querySelectorAll('.export-employee:checked')).map(function (x) { return x.value; }); if (ids && !ids.length) return alert('Seleziona almeno un dipendente.'); window.XlsxExporter.download(data, byId('fromDate').value, byId('toDate').value, ids, employeeName, storeName); }
 
   function openPage(name) { document.querySelectorAll('.page').forEach(function (x) { x.classList.toggle('active', x.id === 'page-' + name); }); document.querySelectorAll('nav button').forEach(function (x) { x.classList.toggle('active', x.dataset.page === name); }); if (name === 'summary') renderSummary(); }
