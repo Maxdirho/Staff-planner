@@ -1,150 +1,218 @@
-const KEY='oreDipendenti.v1';
-const MAX_EMPLOYEES=15, MAX_STORES=5;
-let state=loadState();
-let exportSelection=null;
-const $=id=>document.getElementById(id);
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-const inputDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const today=()=>inputDate(new Date());
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+(function () {
+  'use strict';
 
-function normalizeState(d){d=d||{};d.employees=Array.isArray(d.employees)?d.employees:[];d.stores=Array.isArray(d.stores)?d.stores:[];d.shifts=Array.isArray(d.shifts)?d.shifts:[];d.absences=Array.isArray(d.absences)?d.absences:[];d.schedules=Array.isArray(d.schedules)?d.schedules:[];d.stores.forEach(x=>x.mode=x.mode||'mixed');return d}
-function loadState(){try{if(window.__desktopState)return normalizeState(window.__desktopState);return normalizeState(JSON.parse(localStorage.getItem(KEY)))}catch{return normalizeState({})}}
-function setDataStatus(text,error=false){let el=$('dataStatus');if(!el)return;el.textContent=text;el.style.color=error?'#b34242':'#126b63';el.style.fontWeight='800'}
-window.desktopSaveResult=ok=>{let time=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());setDataStatus(ok?`Dati salvati alle ${time}`:'Errore nel salvataggio dei dati',!ok)};
-function saveState(){let json=JSON.stringify(state),browserSaved=false;try{localStorage.setItem(KEY,json);browserSaved=true}catch{}let bridge=window.webkit?.messageHandlers?.saveData;if(bridge){try{setDataStatus('Salvataggio in corso…');bridge.postMessage(json)}catch{setDataStatus(browserSaved?'Dati salvati localmente':'Errore nel salvataggio dei dati',!browserSaved)}}else setDataStatus(browserSaved?'Dati salvati':'Errore nel salvataggio dei dati',!browserSaved)}
-function entity(list,id){return list.find(x=>x.id===id)}
-function active(list){return list.filter(x=>x.active!==false).sort((a,b)=>a.name.localeCompare(b.name,'it'))}
-function showToast(text){$('toast').textContent=text;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2200)}
-function fmtDate(d){if(!d)return'';return new Intl.DateTimeFormat('it-IT').format(new Date(d+'T12:00:00'))}
-function minutesBetween(start,end){let [sh,sm]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number);let n=eh*60+em-(sh*60+sm);if(n<=0)n+=1440;return Math.max(0,n)}
-function shiftIntervals(x){return Array.isArray(x.intervals)&&x.intervals.length?x.intervals:[{start:x.start,end:x.end}]}
-function shiftStart(x){return shiftIntervals(x)[0]?.start||''}
-function shiftMinutes(x){return Math.max(0,shiftIntervals(x).reduce((n,i)=>n+minutesBetween(i.start,i.end),0)-Number(x.breakMinutes||0))}
-function shiftCount(x){return shiftIntervals(x).length}
-function shiftStatus(x){return x.status||(x.scheduleId?'confirmed':'manual')}
-function statusLabel(x){return({confirmed:'Confermato',modified:'Modificato',manual:'Manuale',pending:'Da confermare'})[typeof x==='string'?x:shiftStatus(x)]||'Manuale'}
-function hoursLabel(min){return`${Math.floor(min/60)} h ${String(min%60).padStart(2,'0')} min`}
-function decimalHours(min){return Math.round(min/60*100)/100}
+  var STORAGE_KEY = 'ore-dipendenti-clean-v1';
+  var MAX_EMPLOYEES = 15;
+  var MAX_STORES = 5;
+  var data = loadData();
+  var editingShiftId = '';
+  var editingAbsenceId = '';
+  var intervals = [{ start: '', end: '' }];
 
-function init(){
-  $('todayLabel').textContent=new Intl.DateTimeFormat('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
-  $('workDate').value=$('absenceDate').value=today();
-  $('tipsMonth').value=today().slice(0,7);
-  $('planWeek').value=inputDate(mondayOf(new Date()));$('planDate').value=today();
-  buildTimes(); renderIntervals();renderPlanIntervals();applyPeriodPreset(false);bind();renderAll();
-}
-function mondayOf(date){let d=new Date(date.getFullYear(),date.getMonth(),date.getDate()),offset=(d.getDay()+6)%7;d.setDate(d.getDate()-offset);return d}
-function addDaysString(s,n){let d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return inputDate(d)}
-let timeOptions='';
-function buildTimes(){timeOptions='<option value="">Scegli…</option>';for(let m=0;m<1440;m+=15){let v=`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;timeOptions+=`<option>${v}</option>`}}
-function renderIntervals(values=[{start:'',end:''}]){$('intervals').innerHTML=values.map((x,i)=>`<div class="interval-row"><div class="field"><div class="interval-number">INTERVALLO ${i+1}</div><label>Entrata</label><select class="interval-start" required>${selectedTimes(x.start)}</select></div><div class="field"><label>Uscita</label><select class="interval-end" required>${selectedTimes(x.end)}</select></div>${values.length>1?'<button type="button" class="button secondary danger remove-interval">Rimuovi</button>':'<span></span>'}</div>`).join('');previewDuration()}
-function selectedTimes(value){return timeOptions.replace(`<option>${value}</option>`,`<option selected>${value}</option>`)}
-function currentIntervals(){return[...document.querySelectorAll('.interval-row')].map(r=>({start:r.querySelector('.interval-start').value,end:r.querySelector('.interval-end').value}))}
-function renderPlanIntervals(values=[{start:'',end:''}]){$('planIntervals').innerHTML=values.map((x,i)=>`<div class="interval-row plan-interval-row"><div class="field"><div class="interval-number">INTERVALLO ${i+1}</div><label>Entrata</label><select class="plan-interval-start" required>${selectedTimes(x.start)}</select></div><div class="field"><label>Uscita</label><select class="plan-interval-end" required>${selectedTimes(x.end)}</select></div>${values.length>1?'<button type="button" class="button secondary danger remove-plan-interval">Rimuovi</button>':'<span></span>'}</div>`).join('')}
-function currentPlanIntervals(){return[...document.querySelectorAll('.plan-interval-row')].map(r=>({start:r.querySelector('.plan-interval-start').value,end:r.querySelector('.plan-interval-end').value}))}
-function bind(){
-  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>openPage(b.dataset.page));
-  $('modeShift').onclick=()=>setMode('shift');$('modeAbsence').onclick=()=>setMode('absence');
-  $('addInterval').onclick=()=>renderIntervals([...currentIntervals(),{start:'',end:''}]);
-  $('intervals').onchange=previewDuration;$('intervals').onclick=e=>{if(e.target.classList.contains('remove-interval')){let rows=[...document.querySelectorAll('.interval-row')],i=rows.indexOf(e.target.closest('.interval-row'));rows=currentIntervals();rows.splice(i,1);renderIntervals(rows)}};
-  $('shiftForm').onsubmit=saveShift;$('absenceForm').onsubmit=saveAbsence;
-  $('cancelShift').onclick=resetShift;$('cancelAbsence').onclick=resetAbsence;
-  $('employeeForm').onsubmit=e=>addEntity(e,'employees','newEmployee',MAX_EMPLOYEES);
-  $('storeForm').onsubmit=e=>addEntity(e,'stores','newStore',MAX_STORES);
-  $('periodPreset').onchange=()=>applyPeriodPreset();$('summaryEmployee').onchange=renderSummary;
-  $('fromDate').onchange=$('toDate').onchange=renderSummary;
-  $('exportExcel').onclick=exportExcel;$('backupData').onclick=backupData;$('restoreData').onchange=restoreData;
-  $('exportAll').onchange=e=>{exportSelection=e.target.checked?null:new Set();renderExportEmployees()};
-  $('exportEmployeeOptions').onchange=e=>{if(!e.target.matches('input[data-employee]'))return;if(exportSelection===null)exportSelection=new Set();e.target.checked?exportSelection.add(e.target.dataset.employee):exportSelection.delete(e.target.dataset.employee);renderExportEmployees()};
-  $('tipsForm').onsubmit=calculateTips;
-  $('planForm').onsubmit=savePlan;$('cancelPlan').onclick=resetPlan;$('copyPreviousWeek').onclick=copyPreviousWeek;
-  $('addPlanInterval').onclick=()=>renderPlanIntervals([...currentPlanIntervals(),{start:'',end:''}]);
-  $('planIntervals').onclick=e=>{if(e.target.classList.contains('remove-plan-interval')){let rows=currentPlanIntervals(),all=[...document.querySelectorAll('.plan-interval-row')],i=all.indexOf(e.target.closest('.plan-interval-row'));rows.splice(i,1);renderPlanIntervals(rows)}};
-  $('planWeek').onchange=()=>{$('planWeek').value=inputDate(mondayOf(new Date($('planWeek').value+'T12:00:00')));renderPlanning()};$('planStoreFilter').onchange=renderPlanning;
-  $('employee').onchange=$('workDate').onchange=renderPlannedSuggestions;
-}
-function openPage(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.page===name));document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===`page-${name}`));if(name==='summary')renderSummary()}
-function setMode(mode){let shift=mode==='shift';$('modeShift').classList.toggle('active',shift);$('modeAbsence').classList.toggle('active',!shift);$('shiftForm').classList.toggle('hidden',!shift);$('absenceForm').classList.toggle('hidden',shift)}
-function fillSelect(id,list,current){$(id).innerHTML='<option value="">Scegli…</option>'+active(list).map(x=>`<option value="${x.id}" ${x.id===current?'selected':''}>${esc(x.name)}</option>`).join('')}
-function renderAll(){fillSelect('employee',state.employees,$('employee').value);fillSelect('absenceEmployee',state.employees,$('absenceEmployee').value);fillSelect('store',state.stores,$('store').value);fillSelect('planEmployee',state.employees,$('planEmployee').value);fillSelect('planStore',state.stores,$('planStore').value);fillSelect('planStoreFilter',state.stores,$('planStoreFilter').value);renderManage();renderSummaryEmployees();renderExportEmployees();renderTipStores();renderSummary();renderPlanning();renderPlannedSuggestions();let ready=active(state.employees).length&&active(state.stores).length;$('shiftForm').classList.toggle('hidden',!ready||$('modeAbsence').classList.contains('active'));$('setupNotice').classList.toggle('hidden',!!ready)}
-function previewDuration(){let intervals=currentIntervals(),complete=intervals.filter(i=>i.start&&i.end);if(!complete.length){$('durationPreview').textContent='Durata calcolata: —';return}let m=complete.reduce((n,i)=>n+minutesBetween(i.start,i.end),0);$('durationPreview').textContent=`Durata calcolata: ${hoursLabel(m)} · ${complete.length} ${complete.length===1?'turno':'turni'}`}
-function sameIntervals(a,b){return JSON.stringify(a||[])===JSON.stringify(b||[])}
-function shiftFormError(text){$('shiftError').textContent=text;$('shiftError').classList.remove('hidden');showToast(text)}
-function saveShift(e){e?.preventDefault();setDataStatus('Pulsante Salva turno premuto…');try{return saveShiftCore()}catch(error){console.error(error);shiftFormError('Si è verificato un errore durante il salvataggio. Riprova.')}}
-function saveShiftCore(){$('shiftError').classList.add('hidden');let intervals=currentIntervals(),employeeId=$('employee').value,storeId=$('store').value,date=$('workDate').value;if(!employeeId){shiftFormError('Seleziona il dipendente.');return}if(!date){shiftFormError('Seleziona il giorno di lavoro.');return}if(!storeId){shiftFormError('Seleziona il negozio.');return}if(!intervals.length||intervals.some(i=>!i.start||!i.end)){shiftFormError('Seleziona entrata e uscita per ogni intervallo.');return}let scheduleId=$('scheduleId').value,schedule=entity(state.schedules,scheduleId),existing=scheduleId&&state.shifts.find(x=>x.scheduleId===scheduleId),id=$('shiftId').value||existing?.id||uid(),obj={id,employeeId,storeId,date,intervals,note:$('shiftNote').value.trim(),scheduleId:scheduleId||'',source:scheduleId?'planned':'manual',status:scheduleId?(sameIntervals(intervals,schedule?.intervals)?'confirmed':'modified'):'manual'},idx=state.shifts.findIndex(x=>x.id===obj.id),updated=idx>=0;updated?state.shifts[idx]=obj:state.shifts.push(obj);saveState();resetShift(false);showReceipt(obj,updated);showToast(updated?'Turni aggiornati':'Turni salvati')}
-function saveAbsence(e){e.preventDefault();let obj={id:$('absenceId').value||uid(),employeeId:$('absenceEmployee').value,date:$('absenceDate').value,type:$('absenceType').value,note:$('absenceNote').value.trim()};if(!obj.employeeId)return;let idx=state.absences.findIndex(x=>x.id===obj.id);idx<0?state.absences.push(obj):state.absences[idx]=obj;saveState();resetAbsence();renderAll();showToast(idx<0?'Assenza salvata':'Assenza aggiornata')}
-function resetShift(hideReceipt=true){$('shiftForm').reset();$('shiftId').value='';$('scheduleId').value='';$('shiftError').classList.add('hidden');$('workDate').value=today();$('cancelShift').classList.add('hidden');$('saveShift').textContent='Salva turno';renderIntervals();if(hideReceipt)$('saveReceipt').classList.add('hidden');renderAll()}
-function showReceipt(x,updated){let employee=entity(state.employees,x.employeeId)?.name||'—',store=entity(state.stores,x.storeId)?.name||'—',mins=shiftMinutes(x),count=shiftCount(x);$('saveReceipt').innerHTML=`<div class="receipt-head"><div class="receipt-title"><span class="receipt-check">✓</span><div><h3>${updated?'Inserimento aggiornato':'Inserimento salvato correttamente'}</h3><p class="muted">Controlla subito i dati qui sotto.</p></div></div><div class="actions"><button class="button secondary" onclick="editShift('${x.id}')">Modifica subito</button><button class="button secondary" onclick="closeReceipt()">Chiudi</button></div></div><div class="receipt-grid"><div class="receipt-value"><span>Dipendente</span><strong>${esc(employee)}</strong></div><div class="receipt-value"><span>Giorno</span><strong>${fmtDate(x.date)}</strong></div><div class="receipt-value"><span>Negozio</span><strong>${esc(store)}</strong></div><div class="receipt-value"><span>Totale</span><strong>${decimalHours(mins).toLocaleString('it-IT',{minimumFractionDigits:2})} ore · ${count} ${count===1?'turno':'turni'}</strong></div></div><div class="receipt-intervals"><strong>Orari inseriti:</strong> ${shiftIntervals(x).map((i,n)=>`${n+1}. ${i.start}–${i.end}`).join(' &nbsp; · &nbsp; ')}</div>`;$('saveReceipt').classList.remove('hidden');$('saveReceipt').scrollIntoView({behavior:'smooth',block:'nearest'})}
-window.closeReceipt=()=>$('saveReceipt').classList.add('hidden');
-function resetAbsence(){$('absenceForm').reset();$('absenceId').value='';$('absenceDate').value=today();$('cancelAbsence').classList.add('hidden');renderAll()}
-function addEntity(e,list,input,max){e.preventDefault();let name=$(input).value.trim();if(!name)return;if(active(state[list]).length>=max){showToast(`Limite massimo di elementi attivi: ${max}`);return}if(state[list].some(x=>x.name.toLowerCase()===name.toLowerCase())){showToast('Nome già presente');return}state[list].push({id:uid(),name,active:true});$(input).value='';saveState();renderAll();showToast('Aggiunto')}
-function renderManage(){
-  $('employeeCount').textContent=`${active(state.employees).length} attivi su ${MAX_EMPLOYEES}`;$('storeCount').textContent=`${active(state.stores).length} attivi su ${MAX_STORES}`;
-  $('employeeList').innerHTML=listHtml(state.employees,'employees');$('storeList').innerHTML=listHtml(state.stores,'stores');
-}
-function renderExportEmployees(){let items=[...state.employees].sort((a,b)=>a.name.localeCompare(b.name,'it'));if(exportSelection!==null)exportSelection=new Set([...exportSelection].filter(id=>items.some(x=>x.id===id)));$('exportAll').checked=exportSelection===null;$('exportEmployeeOptions').innerHTML=items.map(x=>`<label class="check-row"><input type="checkbox" data-employee="${x.id}" ${exportSelection?.has(x.id)?'checked':''}><span>${esc(x.name)}${x.active===false?' (non attivo)':''}</span></label>`).join('')||'<p class="muted">Nessun dipendente inserito</p>';let count=exportSelection?.size||0;$('exportSelectionLabel').textContent=exportSelection===null?'Tutti i dipendenti':count===1?'1 dipendente selezionato':`${count} dipendenti selezionati`}
-function renderSummaryEmployees(){let current=$('summaryEmployee').value,items=[...state.employees].sort((a,b)=>a.name.localeCompare(b.name,'it'));$('summaryEmployee').innerHTML='<option value="">Tutti i dipendenti</option>'+items.map(x=>`<option value="${x.id}" ${x.id===current?'selected':''}>${esc(x.name)}${x.active===false?' (non attivo)':''}</option>`).join('')}
-function renderTipStores(){let current=$('tipsStore').value,items=[...state.stores].sort((a,b)=>a.name.localeCompare(b.name,'it'));$('tipsStore').innerHTML='<option value="">Scegli…</option>'+items.map(x=>`<option value="${x.id}" ${x.id===current?'selected':''}>${esc(x.name)}${x.active===false?' (non attivo)':''}</option>`).join('')}
-function allocateTipCents(totalCents,turnRows){let totalTurns=turnRows.reduce((n,x)=>n+x.turns,0),rows=turnRows.map(x=>{let raw=totalCents*x.turns/totalTurns,base=Math.floor(raw);return{...x,cents:base,remainder:raw-base}}),remaining=totalCents-rows.reduce((n,x)=>n+x.cents,0);[...rows].sort((a,b)=>b.remainder-a.remainder||a.name.localeCompare(b.name,'it')).slice(0,remaining).forEach(x=>x.cents++);return rows}
-function euro(cents){return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(cents/100)}
-function calculateTips(e){e.preventDefault();let month=$('tipsMonth').value,storeId=$('tipsStore').value,total=Number($('tipsTotal').value),totalCents=Math.round(total*100);if(!month||!storeId||!Number.isFinite(total)||total<=0)return;let counts={};state.shifts.filter(x=>x.storeId===storeId&&x.date.startsWith(month)).forEach(x=>counts[x.employeeId]=(counts[x.employeeId]||0)+shiftCount(x));let turnRows=Object.entries(counts).map(([employeeId,turns])=>({employeeId,name:entity(state.employees,employeeId)?.name||'Dipendente non disponibile',turns})).filter(x=>x.turns>0),totalTurns=turnRows.reduce((n,x)=>n+x.turns,0),storeName=entity(state.stores,storeId)?.name||'—';if(!totalTurns){$('tipsResult').innerHTML='<div class="empty">Non risultano turni per questo negozio nel mese selezionato.</div>';$('tipsResult').classList.remove('hidden');return}let rows=allocateTipCents(totalCents,turnRows).sort((a,b)=>b.turns-a.turns||a.name.localeCompare(b.name,'it')),assigned=rows.reduce((n,x)=>n+x.cents,0);$('tipsResult').innerHTML=`<div class="tips-summary"><div class="tips-card"><span>Negozio</span><strong>${esc(storeName)}</strong></div><div class="tips-card"><span>Turni complessivi</span><strong>${totalTurns}</strong></div><div class="tips-card"><span>Valore medio per turno</span><strong>${euro(Math.round(totalCents/totalTurns))}</strong></div></div><div class="tips-note">Totale distribuito: <strong>${euro(assigned)}</strong>. Gli eventuali centesimi residui sono assegnati automaticamente, senza superare il totale inserito.</div><div class="card table-card"><div class="table-title"><h3>Ripartizione delle mance</h3></div><div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Turni</th><th>Quota turni</th><th>Mance spettanti</th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.name)}</strong></td><td>${x.turns}</td><td>${(x.turns/totalTurns*100).toLocaleString('it-IT',{minimumFractionDigits:1,maximumFractionDigits:1})}%</td><td class="tips-amount">${euro(x.cents)}</td></tr>`).join('')}<tr><td><strong>Totale</strong></td><td><strong>${totalTurns}</strong></td><td><strong>100,0%</strong></td><td class="tips-amount">${euro(assigned)}</td></tr></tbody></table></div></div>`;$('tipsResult').classList.remove('hidden');$('tipsResult').scrollIntoView({behavior:'smooth',block:'start'})}
-function applyPeriodPreset(shouldRender=true){let preset=$('periodPreset').value,now=new Date(),from,to,custom=preset==='custom';if(preset==='week'){let offset=(now.getDay()+6)%7;from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-offset);to=new Date(from.getFullYear(),from.getMonth(),from.getDate()+6)}else if(preset==='month'){from=new Date(now.getFullYear(),now.getMonth(),1);to=new Date(now.getFullYear(),now.getMonth()+1,0)}else if(preset==='year'){from=new Date(now.getFullYear(),0,1);to=new Date(now.getFullYear(),11,31)}if(!custom){$('fromDate').value=inputDate(from);$('toDate').value=inputDate(to)}$('fromDate').disabled=$('toDate').disabled=!custom;if(shouldRender)renderSummary()}
-function listHtml(items,type){if(!items.length)return'<div class="empty">Nessun elemento inserito</div>';return items.sort((a,b)=>a.name.localeCompare(b.name,'it')).map(x=>`<div class="item"><span class="item-name ${x.active===false?'inactive':''}">${esc(x.name)}</span><span class="item-actions">${type==='stores'?`<select class="mode-select" onchange="setStoreMode('${x.id}',this.value)" title="Modalità inserimento"><option value="free" ${x.mode==='free'?'selected':''}>Libero</option><option value="mixed" ${(x.mode||'mixed')==='mixed'?'selected':''}>Misto</option><option value="planned" ${x.mode==='planned'?'selected':''}>Programmato</option></select>`:''}<button class="button small secondary" onclick="renameEntity('${type}','${x.id}')">Rinomina</button><button class="button small secondary ${x.active===false?'':'danger'}" onclick="toggleEntity('${type}','${x.id}')">${x.active===false?'Riattiva':'Disattiva'}</button></span></div>`).join('')}
-window.setStoreMode=(id,mode)=>{let store=entity(state.stores,id);if(store){store.mode=mode;saveState();renderAll();showToast('Modalità aggiornata')}};
-window.renameEntity=(type,id)=>{let x=entity(state[type],id),name=prompt('Nuovo nome:',x.name);if(name&&name.trim()){x.name=name.trim();saveState();renderAll()}};
-window.toggleEntity=(type,id)=>{let x=entity(state[type],id);if(x.active===false){let max=type==='employees'?MAX_EMPLOYEES:MAX_STORES;if(active(state[type]).length>=max){showToast(`Limite massimo di elementi attivi: ${max}`);return}}x.active=x.active===false;saveState();renderAll()};
-function savePlan(e){e.preventDefault();let intervals=currentPlanIntervals(),obj={id:$('planId').value||uid(),employeeId:$('planEmployee').value,storeId:$('planStore').value,date:$('planDate').value,intervals,note:$('planNote').value.trim()};if(!obj.employeeId||!obj.storeId||!obj.date||intervals.some(i=>!i.start||!i.end))return;let duplicate=state.schedules.find(x=>x.id!==obj.id&&x.employeeId===obj.employeeId&&x.storeId===obj.storeId&&x.date===obj.date);if(duplicate&&!confirm('Esiste già una programmazione per questo dipendente, negozio e giorno. Vuoi aggiungerne un’altra?'))return;let idx=state.schedules.findIndex(x=>x.id===obj.id);idx<0?state.schedules.push(obj):state.schedules[idx]=obj;let actual=state.shifts.find(x=>x.scheduleId===obj.id);if(actual)actual.status=sameIntervals(actual.intervals,obj.intervals)?'confirmed':'modified';saveState();resetPlan();renderAll();showToast(idx<0?'Turno programmato':'Programmazione aggiornata')}
-function resetPlan(){$('planForm').reset();$('planId').value='';$('planDate').value=today();$('cancelPlan').classList.add('hidden');$('savePlan').textContent='Salva programmazione';renderPlanIntervals();renderAll()}
-function renderPlanning(){let start=$('planWeek').value;if(!start)return;let end=addDaysString(start,6),storeId=$('planStoreFilter').value,rows=state.schedules.filter(x=>x.date>=start&&x.date<=end&&(!storeId||x.storeId===storeId)).sort((a,b)=>a.date.localeCompare(b.date)||a.employeeId.localeCompare(b.employeeId));$('planRows').innerHTML=rows.map(x=>{let actual=state.shifts.find(s=>s.scheduleId===x.id),status=actual?shiftStatus(actual):'pending';return`<tr><td>${fmtDate(x.date)}</td><td><strong>${esc(entity(state.employees,x.employeeId)?.name||'—')}</strong></td><td>${esc(entity(state.stores,x.storeId)?.name||'—')}</td><td class="interval-times">${shiftIntervals(x).map(i=>`${i.start}–${i.end}`).join('<br>')}</td><td><span class="status-pill ${status}">${statusLabel(status)}</span></td><td><button class="button small secondary" onclick="editPlan('${x.id}')">Modifica</button> <button class="button small secondary danger" onclick="deletePlan('${x.id}')">Elimina</button></td></tr>`}).join('')||emptyRow(6,'Nessun turno programmato per questa settimana')}
-window.editPlan=id=>{let x=entity(state.schedules,id);openPage('planning');$('planId').value=x.id;fillSelect('planEmployee',state.employees,x.employeeId);fillSelect('planStore',state.stores,x.storeId);$('planDate').value=x.date;renderPlanIntervals(x.intervals);$('planNote').value=x.note||'';$('cancelPlan').classList.remove('hidden');$('savePlan').textContent='Aggiorna programmazione';scrollTo({top:0,behavior:'smooth'})};
-window.deletePlan=id=>{if(state.shifts.some(x=>x.scheduleId===id)){showToast('Turno già confermato: elimina o modifica prima la registrazione effettiva');return}if(confirm('Eliminare questo turno programmato?')){state.schedules=state.schedules.filter(x=>x.id!==id);saveState();renderAll()}};
-function copyPreviousWeek(){let start=$('planWeek').value,storeId=$('planStoreFilter').value;if(!storeId){showToast('Seleziona prima un negozio');return}let prevStart=addDaysString(start,-7),prevEnd=addDaysString(start,-1),source=state.schedules.filter(x=>x.storeId===storeId&&x.date>=prevStart&&x.date<=prevEnd);if(!source.length){showToast('Nessun turno nella settimana precedente');return}if(!confirm(`Copiare ${source.length} turni dalla settimana precedente?`))return;let added=0;source.forEach(x=>{let date=addDaysString(x.date,7),exists=state.schedules.some(y=>y.storeId===x.storeId&&y.employeeId===x.employeeId&&y.date===date);if(!exists){state.schedules.push({...x,id:uid(),date,intervals:x.intervals.map(i=>({...i}))});added++}});saveState();renderAll();showToast(`${added} turni copiati`)}
-function renderPlannedSuggestions(){let employeeId=$('employee').value,date=$('workDate').value;if(!employeeId||!date){$('plannedSuggestions').classList.add('hidden');$('plannedSuggestions').innerHTML='';return}let plans=state.schedules.filter(x=>x.employeeId===employeeId&&x.date===date&&(entity(state.stores,x.storeId)?.mode||'mixed')!=='free');if(!plans.length){$('plannedSuggestions').classList.add('hidden');$('plannedSuggestions').innerHTML='';return}$('plannedSuggestions').innerHTML=plans.map(x=>{let store=entity(state.stores,x.storeId),actual=state.shifts.find(s=>s.scheduleId===x.id),mode=store?.mode||'mixed',status=actual?shiftStatus(actual):'pending';return`<div class="planned-card ${mode==='planned'?'programmed':''}"><div class="planned-card-head"><div class="planned-card-title"><strong>${esc(store?.name||'—')} · ${shiftIntervals(x).map(i=>`${i.start}–${i.end}`).join(' / ')}</strong><small>${mode==='planned'?'Turno programmato da controllare':'Turno proposto dal gestore'}${x.note?' · '+esc(x.note):''}</small></div><span class="status-pill ${status}">${statusLabel(status)}</span></div><div class="actions">${actual?`<button class="button secondary" onclick="editShift('${actual.id}')">Controlla o modifica</button>`:`<button class="button primary" onclick="confirmSchedule('${x.id}')">Conferma così</button><button class="button secondary" onclick="useSchedule('${x.id}')">Correggi prima di salvare</button>`}</div></div>`}).join('');$('plannedSuggestions').classList.remove('hidden')}
-window.confirmSchedule=id=>{let x=entity(state.schedules,id),existing=state.shifts.find(s=>s.scheduleId===id),obj={id:existing?.id||uid(),employeeId:x.employeeId,storeId:x.storeId,date:x.date,intervals:x.intervals.map(i=>({...i})),note:x.note||'',scheduleId:id,source:'planned',status:'confirmed'},idx=state.shifts.findIndex(s=>s.id===obj.id);idx<0?state.shifts.push(obj):state.shifts[idx]=obj;saveState();resetShift(false);showReceipt(obj,idx>=0);showToast('Turno confermato')};
-window.useSchedule=id=>{let x=entity(state.schedules,id),actual=state.shifts.find(s=>s.scheduleId===id);if(actual){editShift(actual.id);return}$('scheduleId').value=id;fillSelect('employee',state.employees,x.employeeId);fillSelect('store',state.stores,x.storeId);$('workDate').value=x.date;renderIntervals(x.intervals);$('shiftNote').value=x.note||'';$('saveShift').textContent='Salva turno controllato';$('cancelShift').classList.remove('hidden');$('shiftForm').scrollIntoView({behavior:'smooth',block:'start'})};
-function inPeriod(x){return x.date>=$('fromDate').value&&x.date<=$('toDate').value}
-function renderSummary(){
-  let employeeId=$('summaryEmployee').value,matches=x=>inPeriod(x)&&(!employeeId||x.employeeId===employeeId);let shifts=state.shifts.filter(matches).sort((a,b)=>b.date.localeCompare(a.date)||shiftStart(b).localeCompare(shiftStart(a))),abs=state.absences.filter(matches).sort((a,b)=>b.date.localeCompare(a.date));
-  let total=shifts.reduce((n,x)=>n+shiftMinutes(x),0),turnCount=shifts.reduce((n,x)=>n+shiftCount(x),0);
-  let pending=state.schedules.filter(x=>matches(x)&&(entity(state.stores,x.storeId)?.mode||'mixed')!=='free'&&!state.shifts.some(s=>s.scheduleId===x.id)).length;
-  $('stats').innerHTML=stat('Ore lavorate',decimalHours(total).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}))+stat('Turni',turnCount)+stat('Da confermare',pending)+stat('Assenze',abs.length);
-  let groups={};shifts.forEach(x=>{let k=x.employeeId+'|'+x.storeId;groups[k]??={employee:entity(state.employees,x.employeeId)?.name||'—',store:entity(state.stores,x.storeId)?.name||'—',turns:0,min:0};groups[k].turns+=shiftCount(x);groups[k].min+=shiftMinutes(x)});
-  $('summaryRows').innerHTML=Object.values(groups).sort((a,b)=>a.employee.localeCompare(b.employee,'it')||a.store.localeCompare(b.store,'it')).map(g=>`<tr><td><strong>${esc(g.employee)}</strong></td><td>${esc(g.store)}</td><td>${g.turns}</td><td>${decimalHours(g.min).toLocaleString('it-IT',{minimumFractionDigits:2})}</td></tr>`).join('')||emptyRow(4,'Nessun turno nel periodo');
-  $('shiftRows').innerHTML=shifts.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><strong>${esc(entity(state.employees,x.employeeId)?.name||'—')}</strong></td><td>${esc(entity(state.stores,x.storeId)?.name||'—')}</td><td class="interval-times">${shiftIntervals(x).map((i,n)=>`${n+1}. ${i.start}–${i.end}`).join('<br>')}</td><td>${decimalHours(shiftMinutes(x)).toLocaleString('it-IT',{minimumFractionDigits:2})}</td><td><span class="status-pill ${shiftStatus(x)}">${statusLabel(x)}</span></td><td><button class="button small secondary" onclick="editShift('${x.id}')">Modifica</button> <button class="button small secondary danger" onclick="deleteRecord('shifts','${x.id}')">Elimina</button></td></tr>`).join('')||emptyRow(7,'Nessuna registrazione');
-  $('absenceRows').innerHTML=abs.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><strong>${esc(entity(state.employees,x.employeeId)?.name||'—')}</strong></td><td>${esc(x.type)}</td><td>${esc(x.note||'')}</td><td><button class="button small secondary" onclick="editAbsence('${x.id}')">Modifica</button> <button class="button small secondary danger" onclick="deleteRecord('absences','${x.id}')">Elimina</button></td></tr>`).join('')||emptyRow(5,'Nessuna assenza');
-}
-function stat(label,value){return`<div class="stat"><div class="label">${label}</div><div class="value">${value}</div></div>`}function emptyRow(n,text){return`<tr><td colspan="${n}" class="muted">${text}</td></tr>`}
-window.editShift=id=>{let x=entity(state.shifts,id);$('saveReceipt').classList.add('hidden');openPage('entry');setMode('shift');$('shiftId').value=x.id;$('scheduleId').value=x.scheduleId||'';fillSelect('employee',state.employees,x.employeeId);fillSelect('store',state.stores,x.storeId);$('workDate').value=x.date;renderIntervals(shiftIntervals(x));$('shiftNote').value=x.note||'';$('cancelShift').classList.remove('hidden');$('saveShift').textContent='Aggiorna turni';previewDuration();renderPlannedSuggestions();scrollTo({top:0,behavior:'smooth'})};
-window.editAbsence=id=>{let x=entity(state.absences,id);openPage('entry');setMode('absence');$('absenceId').value=x.id;fillSelect('absenceEmployee',state.employees,x.employeeId);$('absenceDate').value=x.date;$('absenceType').value=x.type;$('absenceNote').value=x.note||'';$('cancelAbsence').classList.remove('hidden');scrollTo({top:0,behavior:'smooth'})};
-window.deleteRecord=(type,id)=>{if(confirm('Eliminare definitivamente questa registrazione?')){state[type]=state[type].filter(x=>x.id!==id);saveState();renderAll();showToast('Registrazione eliminata')}};
-function backupData(){download(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`backup-ore-${today()}.json`)}
-function restoreData(e){let file=e.target.files[0];if(!file)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!Array.isArray(d.employees)||!Array.isArray(d.stores)||!Array.isArray(d.shifts)||!Array.isArray(d.absences))throw 0;if(confirm('Sostituire tutti i dati attuali con il backup?')){state=normalizeState(d);saveState();renderAll();showToast('Backup ripristinato')}}catch{alert('Il file selezionato non è un backup valido.')}};r.readAsText(file);e.target.value=''}
-function download(blob,name){if(window.webkit?.messageHandlers?.download){blob.arrayBuffer().then(buffer=>{let bytes=new Uint8Array(buffer),binary='',chunk=32768;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,i+chunk));window.webkit.messageHandlers.download.postMessage({name,type:blob.type||'application/octet-stream',data:btoa(binary)})});return}let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+  function byId(id) { return document.getElementById(id); }
+  function id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function inputDate(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()); }
+  function today() { return inputDate(new Date()); }
+  function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+  function euro(cents) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100); }
+  function defaultData() { return { employees: [], stores: [], shifts: [], absences: [] }; }
+  function normalize(value) {
+    var clean = value && typeof value === 'object' ? value : defaultData();
+    ['employees', 'stores', 'shifts', 'absences'].forEach(function (key) { if (!Array.isArray(clean[key])) clean[key] = []; });
+    return clean;
+  }
+  function loadData() { try { return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY))); } catch (e) { return defaultData(); } }
+  function commit() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      byId('saveStatus').textContent = 'Dati salvati alle ' + new Date().toLocaleTimeString('it-IT');
+      byId('saveStatus').style.color = '#126b63';
+      return true;
+    } catch (e) {
+      byId('saveStatus').textContent = 'Errore: il browser non consente il salvataggio';
+      byId('saveStatus').style.color = '#a83a34';
+      return false;
+    }
+  }
+  function employeeName(employeeId) { var x = data.employees.find(function (e) { return e.id === employeeId; }); return x ? x.name : '—'; }
+  function storeName(storeId) { var x = data.stores.find(function (s) { return s.id === storeId; }); return x ? x.name : '—'; }
+  function active(items) { return items.filter(function (x) { return x.active !== false; }).slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }); }
 
-// Generatore XLSX offline: crea un file Excel standard senza servizi esterni.
-function exportExcel(){
-  if(exportSelection!==null&&!exportSelection.size){showToast('Seleziona almeno un dipendente');$('exportPicker').open=true;return}let included=id=>exportSelection===null||exportSelection.has(id);
-  let shifts=state.shifts.filter(x=>inPeriod(x)&&included(x.employeeId)).sort((a,b)=>a.date.localeCompare(b.date)||shiftStart(a).localeCompare(shiftStart(b)));let abs=state.absences.filter(x=>inPeriod(x)&&included(x.employeeId)).sort((a,b)=>a.date.localeCompare(b.date));
-  let detail=[['Data','Dipendente','Negozio','Intervallo','Entrata','Uscita','Ore lavorate','Origine','Stato','Nota']];
-  shifts.forEach(x=>shiftIntervals(x).forEach((i,n)=>detail.push([dateSerial(x.date),entity(state.employees,x.employeeId)?.name||'—',entity(state.stores,x.storeId)?.name||'—',n+1,i.start,i.end,decimalHours(minutesBetween(i.start,i.end)),x.scheduleId?'Programmato':'Manuale',statusLabel(x),n===0?(x.note||''):'' ])));
-  let groups={};shifts.forEach(x=>{let k=x.employeeId+'|'+x.storeId;groups[k]??={e:entity(state.employees,x.employeeId)?.name||'—',s:entity(state.stores,x.storeId)?.name||'—',n:0,m:0};groups[k].n+=shiftCount(x);groups[k].m+=shiftMinutes(x)});
-  let summary=[['Dipendente','Negozio','Numero turni','Ore totali']];Object.values(groups).sort((a,b)=>a.e.localeCompare(b.e,'it')||a.s.localeCompare(b.s,'it')).forEach(g=>summary.push([g.e,g.s,g.n,decimalHours(g.m)]));
-  let absRows=[['Data','Dipendente','Tipo assenza','Nota']];abs.forEach(x=>absRows.push([dateSerial(x.date),entity(state.employees,x.employeeId)?.name||'—',x.type,x.note||'']));
-  let files=xlsxFiles([{name:'Dettaglio turni',rows:detail,dateCols:[0],widths:[13,25,22,11,11,14,16,16,16,30]},{name:'Riepilogo',rows:summary,dateCols:[],widths:[25,22,16,16]},{name:'Assenze',rows:absRows,dateCols:[0],widths:[13,25,20,35]}]);download(new Blob([makeZip(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`riepilogo-ore-${$('fromDate').value}_${$('toDate').value}.xlsx`);showToast('Excel creato')
-}
-function dateSerial(s){return(Math.floor(new Date(s+'T00:00:00Z')/86400000)+25569)}
-function xlsxFiles(sheets){
-  const ct=`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
-  const rootRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-  const wb=`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xml(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`;
-  const wbRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
-  const styles=`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF126B63"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>`;
-  let out={'[Content_Types].xml':ct,'_rels/.rels':rootRels,'xl/workbook.xml':wb,'xl/_rels/workbook.xml.rels':wbRels,'xl/styles.xml':styles};sheets.forEach((s,i)=>out[`xl/worksheets/sheet${i+1}.xml`]=sheetXml(s));return out
-}
-function sheetXml(s){let cols=s.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('');let rows=s.rows.map((row,ri)=>`<row r="${ri+1}"${ri===0?' ht="24" customHeight="1"':''}>${row.map((v,ci)=>cellXml(v,ri,ci,s.dateCols)).join('')}</row>`).join('');let end=colName(Math.max(0,s.rows[0].length-1))+Math.max(1,s.rows.length);return`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows}</sheetData><autoFilter ref="A1:${end}"/></worksheet>`}
-function cellXml(v,r,c,dateCols){let ref=colName(c)+(r+1),style=r===0?1:(dateCols.includes(c)?2:(typeof v==='number'&&c>0?3:0));if(typeof v==='number')return`<c r="${ref}" s="${style}"><v>${v}</v></c>`;return`<c r="${ref}" t="inlineStr" s="${style}"><is><t>${xml(v)}</t></is></c>`}
-function colName(n){let s='';do{s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26)-1}while(n>=0);return s}function xml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]))}
-function makeZip(files){let enc=new TextEncoder(),parts=[],central=[],offset=0,count=0;for(let [name,data] of Object.entries(files)){let n=enc.encode(name),d=enc.encode(data),crc=crc32(d),local=new Uint8Array(30+n.length+d.length),v=new DataView(local.buffer);v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0,true);v.setUint16(8,0,true);v.setUint32(14,crc,true);v.setUint32(18,d.length,true);v.setUint32(22,d.length,true);v.setUint16(26,n.length,true);local.set(n,30);local.set(d,30+n.length);parts.push(local);let c=new Uint8Array(46+n.length),cv=new DataView(c.buffer);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint32(16,crc,true);cv.setUint32(20,d.length,true);cv.setUint32(24,d.length,true);cv.setUint16(28,n.length,true);cv.setUint32(42,offset,true);c.set(n,46);central.push(c);offset+=local.length;count++}let cs=central.reduce((n,x)=>n+x.length,0),end=new Uint8Array(22),ev=new DataView(end.buffer);ev.setUint32(0,0x06054b50,true);ev.setUint16(8,count,true);ev.setUint16(10,count,true);ev.setUint32(12,cs,true);ev.setUint32(16,offset,true);let total=offset+cs+22,out=new Uint8Array(total),p=0;[...parts,...central,end].forEach(x=>{out.set(x,p);p+=x.length});return out}
-let crcTable;function crc32(data){if(!crcTable){crcTable=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?0xedb88320^(c>>>1):c>>>1;crcTable[n]=c>>>0}}let c=0xffffffff;for(let b of data)c=crcTable[(c^b)&255]^(c>>>8);return(c^0xffffffff)>>>0}
-init();
+  function minutes(start, end) {
+    var a = start.split(':').map(Number), b = end.split(':').map(Number);
+    var result = b[0] * 60 + b[1] - (a[0] * 60 + a[1]);
+    return result <= 0 ? result + 1440 : result;
+  }
+  function shiftMinutes(shift) { return shift.intervals.reduce(function (sum, x) { return sum + minutes(x.start, x.end); }, 0); }
+  function decimalHours(mins) { return Math.round(mins / 60 * 100) / 100; }
+  function formatDate(value) { return new Intl.DateTimeFormat('it-IT').format(new Date(value + 'T12:00:00')); }
+  function timeOptions(selected) {
+    var html = '<option value="">Scegli…</option>';
+    for (var m = 0; m < 1440; m += 15) {
+      var value = pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+      html += '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + value + '</option>';
+    }
+    return html;
+  }
+
+  function fillSelect(element, items, placeholder, current, includeInactive) {
+    var source = includeInactive ? items.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }) : active(items);
+    element.innerHTML = '<option value="">' + placeholder + '</option>' + source.map(function (x) {
+      return '<option value="' + x.id + '"' + (x.id === current ? ' selected' : '') + '>' + escapeHtml(x.name) + (x.active === false ? ' (non attivo)' : '') + '</option>';
+    }).join('');
+  }
+
+  function renderIntervals() {
+    byId('intervalList').innerHTML = intervals.map(function (x, index) {
+      return '<div class="interval-row" data-index="' + index + '"><label>Entrata<select class="start">' + timeOptions(x.start) + '</select></label><label>Uscita<select class="end">' + timeOptions(x.end) + '</select></label>' + (intervals.length > 1 ? '<button type="button" class="secondary remove">Rimuovi</button>' : '') + '</div>';
+    }).join('');
+    updateDuration();
+  }
+  function syncIntervals() {
+    intervals = Array.from(document.querySelectorAll('#intervalList .interval-row')).map(function (row) { return { start: row.querySelector('.start').value, end: row.querySelector('.end').value }; });
+  }
+  function updateDuration() {
+    syncIntervals();
+    var complete = intervals.filter(function (x) { return x.start && x.end; });
+    if (!complete.length) { byId('duration').textContent = 'Durata: —'; return; }
+    var total = complete.reduce(function (sum, x) { return sum + minutes(x.start, x.end); }, 0);
+    byId('duration').textContent = 'Durata: ' + Math.floor(total / 60) + ' h ' + pad(total % 60) + ' min · ' + complete.length + (complete.length === 1 ? ' turno' : ' turni');
+  }
+  function showError(id, text) { var box = byId(id); box.textContent = text; box.classList.remove('hidden'); }
+  function clearError(id) { byId(id).classList.add('hidden'); }
+
+  function resetShift() {
+    editingShiftId = '';
+    byId('shiftEmployee').value = '';
+    byId('shiftStore').value = '';
+    byId('shiftDate').value = today();
+    byId('shiftNote').value = '';
+    intervals = [{ start: '', end: '' }];
+    clearError('shiftError'); renderIntervals();
+  }
+  function saveShift() {
+    clearError('shiftError'); syncIntervals();
+    var employeeId = byId('shiftEmployee').value, storeId = byId('shiftStore').value, date = byId('shiftDate').value;
+    if (!employeeId) return showError('shiftError', 'Seleziona il dipendente.');
+    if (!storeId) return showError('shiftError', 'Seleziona il negozio.');
+    if (!date) return showError('shiftError', 'Seleziona la data.');
+    if (intervals.some(function (x) { return !x.start || !x.end; })) return showError('shiftError', 'Seleziona entrata e uscita per ogni intervallo.');
+    var record = { id: editingShiftId || id(), employeeId: employeeId, storeId: storeId, date: date, intervals: intervals.map(function (x) { return { start: x.start, end: x.end }; }), note: byId('shiftNote').value.trim() };
+    var index = data.shifts.findIndex(function (x) { return x.id === record.id; });
+    if (index < 0) data.shifts.push(record); else data.shifts[index] = record;
+    if (!commit()) return showError('shiftError', 'Il turno non è stato salvato. Controlla le impostazioni del browser.');
+    var total = shiftMinutes(record);
+    byId('receipt').innerHTML = '<h3>✓ Turno salvato</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(storeName(record.storeId)) + '</p><p>' + record.intervals.map(function (x) { return x.start + '–' + x.end; }).join(' / ') + ' · <strong>' + decimalHours(total).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' ore</strong></p>';
+    byId('receipt').classList.remove('hidden');
+    resetShift(); renderSummary();
+  }
+
+  function showAbsence(show) { byId('shiftPanel').classList.toggle('hidden', show); byId('absencePanel').classList.toggle('hidden', !show); byId('showAbsence').classList.toggle('hidden', show); }
+  function resetAbsence() { editingAbsenceId = ''; byId('absenceEmployee').value = ''; byId('absenceDate').value = today(); byId('absenceNote').value = ''; clearError('absenceError'); }
+  function saveAbsence() {
+    clearError('absenceError'); var employeeId = byId('absenceEmployee').value, date = byId('absenceDate').value;
+    if (!employeeId) return showError('absenceError', 'Seleziona il dipendente.');
+    if (!date) return showError('absenceError', 'Seleziona la data.');
+    var record = { id: editingAbsenceId || id(), employeeId: employeeId, date: date, type: byId('absenceType').value, note: byId('absenceNote').value.trim() };
+    var index = data.absences.findIndex(function (x) { return x.id === record.id; }); if (index < 0) data.absences.push(record); else data.absences[index] = record;
+    if (!commit()) return showError('absenceError', 'L’assenza non è stata salvata.');
+    byId('receipt').innerHTML = '<h3>✓ Assenza salvata</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(record.type) + '</p>';
+    byId('receipt').classList.remove('hidden'); resetAbsence(); showAbsence(false); renderSummary();
+  }
+
+  function addEntity(kind) {
+    var isEmployee = kind === 'employee', input = byId(isEmployee ? 'employeeName' : 'storeName'), list = isEmployee ? data.employees : data.stores, limit = isEmployee ? MAX_EMPLOYEES : MAX_STORES;
+    var name = input.value.trim(); if (!name) return;
+    if (active(list).length >= limit) return alert('Limite massimo di elementi attivi: ' + limit);
+    if (list.some(function (x) { return x.name.toLowerCase() === name.toLowerCase(); })) return alert('Nome già presente.');
+    list.push({ id: id(), name: name, active: true }); input.value = ''; commit(); renderAll();
+  }
+  function renderEntities() {
+    byId('employeeCount').textContent = active(data.employees).length + '/' + MAX_EMPLOYEES;
+    byId('storeCount').textContent = active(data.stores).length + '/' + MAX_STORES;
+    byId('employeeList').innerHTML = entityRows(data.employees, 'employee'); byId('storeList').innerHTML = entityRows(data.stores, 'store');
+  }
+  function entityRows(items, kind) {
+    return items.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }).map(function (x) {
+      return '<div class="item' + (x.active === false ? ' inactive' : '') + '"><span>' + escapeHtml(x.name) + '</span><div><button type="button" class="secondary rename-entity" data-kind="' + kind + '" data-id="' + x.id + '">Rinomina</button> <button type="button" class="secondary toggle-entity" data-kind="' + kind + '" data-id="' + x.id + '">' + (x.active === false ? 'Riattiva' : 'Disattiva') + '</button></div></div>';
+    }).join('') || '<p>Nessun elemento.</p>';
+  }
+
+  function periodDates() {
+    var now = new Date(), value = byId('period').value, from, to;
+    if (value === 'week') { var offset = (now.getDay() + 6) % 7; from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset); to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6); }
+    if (value === 'month') { from = new Date(now.getFullYear(), now.getMonth(), 1); to = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
+    if (value === 'year') { from = new Date(now.getFullYear(), 0, 1); to = new Date(now.getFullYear(), 11, 31); }
+    if (value !== 'custom') { byId('fromDate').value = inputDate(from); byId('toDate').value = inputDate(to); }
+    byId('fromDate').disabled = byId('toDate').disabled = value !== 'custom';
+  }
+  function filtered() {
+    var employeeId = byId('summaryEmployee').value, from = byId('fromDate').value, to = byId('toDate').value;
+    var match = function (x) { return x.date >= from && x.date <= to && (!employeeId || x.employeeId === employeeId); };
+    return { shifts: data.shifts.filter(match).sort(function (a, b) { return b.date.localeCompare(a.date); }), absences: data.absences.filter(match).sort(function (a, b) { return b.date.localeCompare(a.date); }) };
+  }
+  function renderSummary() {
+    var result = filtered(), total = result.shifts.reduce(function (sum, x) { return sum + shiftMinutes(x); }, 0), turns = result.shifts.reduce(function (sum, x) { return sum + x.intervals.length; }, 0);
+    byId('stats').innerHTML = stat('Ore lavorate', decimalHours(total).toLocaleString('it-IT', { minimumFractionDigits: 2 })) + stat('Turni', turns) + stat('Dipendenti', new Set(result.shifts.map(function (x) { return x.employeeId; })).size) + stat('Assenze', result.absences.length);
+    var groups = {};
+    result.shifts.forEach(function (x) { var key = x.employeeId + '|' + x.storeId; if (!groups[key]) groups[key] = { employee: employeeName(x.employeeId), store: storeName(x.storeId), turns: 0, mins: 0 }; groups[key].turns += x.intervals.length; groups[key].mins += shiftMinutes(x); });
+    byId('aggregateRows').innerHTML = Object.values(groups).map(function (x) { return '<tr><td><strong>' + escapeHtml(x.employee) + '</strong></td><td>' + escapeHtml(x.store) + '</td><td>' + x.turns + '</td><td>' + decimalHours(x.mins).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + '</td></tr>'; }).join('') || empty(4);
+    byId('shiftRows').innerHTML = result.shifts.map(function (x) { return '<tr><td>' + formatDate(x.date) + '</td><td><strong>' + escapeHtml(employeeName(x.employeeId)) + '</strong></td><td>' + escapeHtml(storeName(x.storeId)) + '</td><td>' + x.intervals.map(function (i) { return i.start + '–' + i.end; }).join('<br>') + '</td><td>' + decimalHours(shiftMinutes(x)).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + '</td><td><button type="button" class="secondary edit-shift" data-id="' + x.id + '">Modifica</button> <button type="button" class="secondary delete-shift" data-id="' + x.id + '">Elimina</button></td></tr>'; }).join('') || empty(6);
+    byId('absenceRows').innerHTML = result.absences.map(function (x) { return '<tr><td>' + formatDate(x.date) + '</td><td><strong>' + escapeHtml(employeeName(x.employeeId)) + '</strong></td><td>' + escapeHtml(x.type) + '</td><td>' + escapeHtml(x.note) + '</td><td><button type="button" class="secondary delete-absence" data-id="' + x.id + '">Elimina</button></td></tr>'; }).join('') || empty(5);
+  }
+  function stat(label, value) { return '<div class="stat"><span>' + label + '</span><strong>' + value + '</strong></div>'; }
+  function empty(cols) { return '<tr><td colspan="' + cols + '">Nessun dato nel periodo.</td></tr>'; }
+
+  function allocateTips(totalCents, rows) {
+    var totalTurns = rows.reduce(function (sum, x) { return sum + x.turns; }, 0);
+    var shares = rows.map(function (x) { var raw = totalCents * x.turns / totalTurns, base = Math.floor(raw); return { name: x.name, turns: x.turns, cents: base, remainder: raw - base }; });
+    var left = totalCents - shares.reduce(function (sum, x) { return sum + x.cents; }, 0);
+    shares.slice().sort(function (a, b) { return b.remainder - a.remainder; }).slice(0, left).forEach(function (x) { x.cents++; }); return shares;
+  }
+  function calculateTips() {
+    byId('tipsError').classList.add('hidden'); var month = byId('tipsMonth').value, storeId = byId('tipsStore').value, total = Number(byId('tipsTotal').value);
+    if (!month || !storeId || !total || total <= 0) return showError('tipsError', 'Inserisci mese, negozio e totale mance.');
+    var counts = {}; data.shifts.filter(function (x) { return x.storeId === storeId && x.date.indexOf(month) === 0; }).forEach(function (x) { counts[x.employeeId] = (counts[x.employeeId] || 0) + x.intervals.length; });
+    var rows = Object.keys(counts).map(function (employeeId) { return { name: employeeName(employeeId), turns: counts[employeeId] }; }), totalTurns = rows.reduce(function (sum, x) { return sum + x.turns; }, 0);
+    if (!totalTurns) return showError('tipsError', 'Non risultano turni per questo negozio nel mese selezionato.');
+    var shares = allocateTips(Math.round(total * 100), rows).sort(function (a, b) { return b.turns - a.turns; });
+    byId('tipsResult').innerHTML = '<div class="stats">' + stat('Mance', euro(Math.round(total * 100))) + stat('Turni', totalTurns) + stat('Dipendenti', shares.length) + stat('Media per turno', euro(Math.round(total * 100 / totalTurns))) + '</div><div class="card table-card"><h3>Ripartizione</h3><div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Turni</th><th>Quota</th></tr></thead><tbody>' + shares.map(function (x) { return '<tr><td><strong>' + escapeHtml(x.name) + '</strong></td><td>' + x.turns + '</td><td class="tip-amount">' + euro(x.cents) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+  }
+
+  function renderAll() {
+    var current = { shiftEmployee: byId('shiftEmployee').value, shiftStore: byId('shiftStore').value, absenceEmployee: byId('absenceEmployee').value, summaryEmployee: byId('summaryEmployee').value, tipsStore: byId('tipsStore').value };
+    fillSelect(byId('shiftEmployee'), data.employees, 'Scegli…', current.shiftEmployee, false); fillSelect(byId('absenceEmployee'), data.employees, 'Scegli…', current.absenceEmployee, false); fillSelect(byId('summaryEmployee'), data.employees, 'Tutti', current.summaryEmployee, true);
+    fillSelect(byId('shiftStore'), data.stores, 'Scegli…', current.shiftStore, false); fillSelect(byId('tipsStore'), data.stores, 'Scegli…', current.tipsStore, true);
+    renderEntities(); renderExportEmployees(); renderSummary(); var ready = active(data.employees).length && active(data.stores).length; byId('shiftPanel').classList.toggle('hidden', !ready); byId('entrySetup').classList.toggle('hidden', !!ready);
+  }
+  function renderExportEmployees() { byId('exportEmployees').innerHTML = data.employees.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }).map(function (x) { return '<label class="check"><input type="checkbox" class="export-employee" value="' + x.id + '"> ' + escapeHtml(x.name) + '</label>'; }).join(''); }
+
+  function download(blob, name) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); }
+  function backup() { download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'backup-ore-' + today() + '.json'); }
+  function restore(file) { var reader = new FileReader(); reader.onload = function () { try { var parsed = normalize(JSON.parse(reader.result)); if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; commit(); renderAll(); resetShift(); } catch (e) { alert('Backup non valido.'); } }; reader.readAsText(file); }
+  function exportExcel() { var ids = byId('exportAll').checked ? null : Array.from(document.querySelectorAll('.export-employee:checked')).map(function (x) { return x.value; }); if (ids && !ids.length) return alert('Seleziona almeno un dipendente.'); window.XlsxExporter.download(data, byId('fromDate').value, byId('toDate').value, ids, employeeName, storeName); }
+
+  function openPage(name) { document.querySelectorAll('.page').forEach(function (x) { x.classList.toggle('active', x.id === 'page-' + name); }); document.querySelectorAll('nav button').forEach(function (x) { x.classList.toggle('active', x.dataset.page === name); }); if (name === 'summary') renderSummary(); }
+  function bind() {
+    document.querySelectorAll('nav button').forEach(function (x) { x.addEventListener('click', function () { openPage(x.dataset.page); }); });
+    byId('addInterval').addEventListener('click', function () { syncIntervals(); intervals.push({ start: '', end: '' }); renderIntervals(); });
+    byId('intervalList').addEventListener('change', updateDuration); byId('intervalList').addEventListener('click', function (e) { if (!e.target.classList.contains('remove')) return; syncIntervals(); intervals.splice(Number(e.target.closest('.interval-row').dataset.index), 1); renderIntervals(); });
+    byId('saveShift').addEventListener('click', saveShift); byId('clearShift').addEventListener('click', resetShift); byId('showAbsence').addEventListener('click', function () { showAbsence(true); }); byId('cancelAbsence').addEventListener('click', function () { showAbsence(false); }); byId('saveAbsence').addEventListener('click', saveAbsence);
+    byId('addEmployee').addEventListener('click', function () { addEntity('employee'); }); byId('addStore').addEventListener('click', function () { addEntity('store'); });
+    byId('page-manage').addEventListener('click', function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; commit(); renderAll(); });
+    byId('period').addEventListener('change', function () { periodDates(); renderSummary(); }); byId('summaryEmployee').addEventListener('change', renderSummary); byId('fromDate').addEventListener('change', renderSummary); byId('toDate').addEventListener('change', renderSummary);
+    byId('shiftRows').addEventListener('click', function (e) { var idValue = e.target.dataset.id; if (!idValue) return; if (e.target.classList.contains('delete-shift')) { if (confirm('Eliminare il turno?')) { data.shifts = data.shifts.filter(function (x) { return x.id !== idValue; }); commit(); renderSummary(); } } else { var x = data.shifts.find(function (s) { return s.id === idValue; }); editingShiftId = x.id; fillSelect(byId('shiftEmployee'), data.employees, 'Scegli…', x.employeeId, true); fillSelect(byId('shiftStore'), data.stores, 'Scegli…', x.storeId, true); byId('shiftDate').value = x.date; byId('shiftNote').value = x.note || ''; intervals = x.intervals.map(function (i) { return { start: i.start, end: i.end }; }); renderIntervals(); openPage('entry'); } });
+    byId('absenceRows').addEventListener('click', function (e) { if (!e.target.classList.contains('delete-absence')) return; if (confirm('Eliminare l’assenza?')) { data.absences = data.absences.filter(function (x) { return x.id !== e.target.dataset.id; }); commit(); renderSummary(); } });
+    byId('calculateTips').addEventListener('click', calculateTips); byId('downloadExcel').addEventListener('click', exportExcel); byId('saveBackup').addEventListener('click', backup); byId('restoreBackup').addEventListener('change', function () { if (this.files[0]) restore(this.files[0]); this.value = ''; });
+    byId('exportAll').addEventListener('change', function () { document.querySelectorAll('.export-employee').forEach(function (x) { x.disabled = byId('exportAll').checked; }); });
+  }
+
+  function init() {
+    byId('shiftDate').value = byId('absenceDate').value = today(); byId('tipsMonth').value = today().slice(0, 7); periodDates(); bind(); renderIntervals(); renderAll();
+    byId('systemStatus').textContent = 'Sistema attivo · ' + data.shifts.length + ' turni salvati';
+  }
+
+  window.__oreTest = { getData: function () { return JSON.parse(JSON.stringify(data)); }, saveShift: saveShift, saveAbsence: saveAbsence, allocateTips: allocateTips };
+  init();
+})();

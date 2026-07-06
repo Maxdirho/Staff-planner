@@ -1,20 +1,19 @@
-ORE DIPENDENTI — PRIMA VERSIONE
+ORE DIPENDENTI — NUOVA BASE 1.0
 
-1. Apri il file “Ore Dipendenti.command”.
-2. Nella sezione Gestione inserisci dipendenti e negozi.
-3. Usa Inserisci per registrare turni e assenze. Per i doppi turni usa “Aggiungi intervallo”.
-4. Dopo il salvataggio controlla la ricevuta con giorno, orari e ore totali; se serve usa “Modifica subito”.
-5. Usa Riepilogo per scegliere un dipendente e controllare settimana, mese, anno o un periodo personalizzato.
-6. Prima di scaricare l’Excel puoi includere tutti i dipendenti oppure selezionarne solo alcuni.
-7. Nella sezione Mance scegli mese e negozio, inserisci il totale raccolto e premi “Calcola ripartizione”.
-8. La Programmazione settimanale è facoltativa: puoi inserire i turni in anticipo oppure lasciare l’inserimento libero.
-9. In Gestione puoi impostare ogni negozio su Libero, Misto o Programmato. In ogni modalità resta possibile inserire un turno manualmente.
-10. I turni programmati possono essere confermati così come sono oppure corretti dal dipendente.
+1. Sposta questa cartella nella posizione definitiva.
+2. Non spostarla o rinominarla dopo aver iniziato a inserire dati.
+3. Apri “Avvia Ore Dipendenti.command”.
 
-I dati vengono salvati su questo Mac, nel browser utilizzato.
-Non spostare o rinominare la cartella dell’app dopo avere iniziato a usarla.
-Usa regolarmente il pulsante “Salva backup” nella sezione Gestione.
+L’app funziona nel browser senza Internet e conserva i dati localmente sul Mac.
+Usa periodicamente Gestione > Salva backup.
 
-Ogni intervallo entrata–uscita viene conteggiato come un turno.
-Anche la divisione delle mance usa questo stesso conteggio dei turni.
-Limiti iniziali: 15 dipendenti e 5 negozi attivi.
+Questa nuova base comprende:
+- dipendenti e negozi;
+- turni con più intervalli;
+- assenze;
+- ricevuta immediata;
+- riepiloghi settimanali, mensili, annuali e personalizzati;
+- esportazione Excel;
+- divisione mensile delle mance.
+
+La programmazione anticipata dei turni verrà aggiunta solo dopo la conferma della stabilità di questa base.

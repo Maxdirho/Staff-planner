@@ -3,140 +3,72 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#126b63">
-  <title>Ore Dipendenti</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="intervals.css">
-  <link rel="stylesheet" href="confirmations.css">
-  <link rel="stylesheet" href="summary-filters.css">
-  <link rel="stylesheet" href="tips.css">
-  <link rel="stylesheet" href="planning.css">
+  <title>Ore Dipendenti — Nuova base</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <p class="eyebrow">GESTIONE PRESENZE</p>
-      <h1>Ore Dipendenti</h1>
-    </div>
-    <div class="today" id="todayLabel"></div>
-  </header>
-
-  <nav class="tabs" aria-label="Sezioni principali">
-    <button class="tab active" data-page="entry">Inserisci</button>
-    <button class="tab" data-page="planning">Programmazione</button>
-    <button class="tab" data-page="summary">Riepilogo</button>
-    <button class="tab" data-page="tips">Mance</button>
-    <button class="tab" data-page="manage">Gestione</button>
+  <header><div><small>GESTIONE PRESENZE</small><h1>Ore Dipendenti</h1></div><div id="systemStatus" class="status ok">Sistema attivo</div></header>
+  <nav>
+    <button type="button" data-page="entry" class="active">Inserisci</button>
+    <button type="button" data-page="summary">Riepilogo</button>
+    <button type="button" data-page="tips">Mance</button>
+    <button type="button" data-page="manage">Gestione</button>
   </nav>
-
   <main>
     <section id="page-entry" class="page active">
-      <div class="intro">
-        <div><p class="eyebrow">NUOVA REGISTRAZIONE</p><h2>Cosa vuoi inserire?</h2></div>
-        <div class="segmented">
-          <button id="modeShift" class="active">Turno lavorato</button>
-          <button id="modeAbsence">Assenza</button>
-        </div>
+      <div class="title-row"><div><small>NUOVA REGISTRAZIONE</small><h2>Inserisci un turno</h2></div><button type="button" id="showAbsence" class="secondary">Registra un’assenza</button></div>
+      <div id="entrySetup" class="notice hidden">Aggiungi almeno un dipendente e un negozio nella sezione Gestione.</div>
+      <div id="shiftPanel" class="card grid">
+        <label class="span-2">Dipendente<select id="shiftEmployee"></select></label>
+        <label>Data<input id="shiftDate" type="date"></label>
+        <label>Negozio<select id="shiftStore"></select></label>
+        <div class="span-2 intervals-box"><div class="interval-head"><div><strong>Orari</strong><p>Ogni intervallo conta come un turno.</p></div><button type="button" id="addInterval" class="secondary">+ Intervallo</button></div><div id="intervalList"></div></div>
+        <label class="span-2">Nota facoltativa<input id="shiftNote" maxlength="120"></label>
+        <div id="duration" class="duration span-2">Durata: —</div>
+        <div id="shiftError" class="error span-2 hidden"></div>
+        <div class="actions span-2"><button type="button" id="clearShift" class="secondary">Pulisci</button><button type="button" id="saveShift" class="primary">Salva turno</button></div>
       </div>
-
-      <div id="plannedSuggestions" class="planned-suggestions hidden"></div>
-      <form id="shiftForm" class="card form-card" novalidate>
-        <input type="hidden" id="shiftId">
-        <input type="hidden" id="scheduleId">
-        <div class="field wide"><label for="employee">Dipendente</label><select id="employee" required></select></div>
-        <div class="field"><label for="workDate">Giorno</label><input id="workDate" type="date" required></div>
-        <div class="field"><label for="store">Negozio</label><select id="store" required></select></div>
-        <div class="intervals-block wide">
-          <div class="intervals-title"><div><label>Intervalli di lavoro</label><p>Ogni intervallo viene conteggiato come un turno.</p></div><button type="button" class="button secondary" id="addInterval">+ Aggiungi intervallo</button></div>
-          <div id="intervals"></div>
-        </div>
-        <div class="field wide"><label for="shiftNote">Nota facoltativa</label><input id="shiftNote" maxlength="120" placeholder="Es. sostituzione, inventario…"></div>
-        <div id="durationPreview" class="duration wide">Durata calcolata: —</div>
-        <div id="shiftError" class="form-error wide hidden"></div>
-        <div class="actions wide"><button type="button" class="button secondary hidden" id="cancelShift">Annulla modifica</button><button class="button primary" type="button" id="saveShift" onclick="saveShift(event); return false;">Salva turno</button></div>
-      </form>
-
-      <form id="absenceForm" class="card form-card hidden">
-        <input type="hidden" id="absenceId">
-        <div class="field wide"><label for="absenceEmployee">Dipendente</label><select id="absenceEmployee" required></select></div>
-        <div class="field"><label for="absenceDate">Giorno</label><input id="absenceDate" type="date" required></div>
-        <div class="field"><label for="absenceType">Tipo di assenza</label><select id="absenceType"><option>Malattia</option><option>Ferie</option><option>Ingiustificata</option></select></div>
-        <div class="field wide"><label for="absenceNote">Nota facoltativa</label><input id="absenceNote" maxlength="120" placeholder="Aggiungi una nota…"></div>
-        <div class="actions wide"><button type="button" class="button secondary hidden" id="cancelAbsence">Annulla modifica</button><button class="button primary" type="submit">Salva assenza</button></div>
-      </form>
-      <div id="setupNotice" class="empty hidden">Prima di inserire un turno, aggiungi almeno un dipendente e un negozio nella sezione <strong>Gestione</strong>.</div>
-      <div id="saveReceipt" class="receipt hidden" role="status"></div>
-      <div id="toast" class="toast" role="status"></div>
-    </section>
-
-    <section id="page-planning" class="page">
-      <div class="intro">
-        <div><p class="eyebrow">GESTIONE TURNI</p><h2>Programmazione settimanale</h2></div>
-        <p class="muted">Facoltativa: l’inserimento manuale rimane sempre disponibile.</p>
+      <div id="absencePanel" class="card grid hidden">
+        <label class="span-2">Dipendente<select id="absenceEmployee"></select></label>
+        <label>Data<input id="absenceDate" type="date"></label>
+        <label>Tipo<select id="absenceType"><option>Malattia</option><option>Ferie</option><option>Ingiustificata</option></select></label>
+        <label class="span-2">Nota facoltativa<input id="absenceNote" maxlength="120"></label>
+        <div id="absenceError" class="error span-2 hidden"></div>
+        <div class="actions span-2"><button type="button" id="cancelAbsence" class="secondary">Torna ai turni</button><button type="button" id="saveAbsence" class="primary">Salva assenza</button></div>
       </div>
-      <div class="card planning-toolbar">
-        <div class="field"><label for="planWeek">Settimana che inizia</label><input id="planWeek" type="date"></div>
-        <div class="field"><label for="planStoreFilter">Negozio</label><select id="planStoreFilter"></select></div>
-        <button class="button secondary" id="copyPreviousWeek" type="button">Copia settimana precedente</button>
-      </div>
-      <form id="planForm" class="card form-card planning-form">
-        <input type="hidden" id="planId">
-        <div class="field"><label for="planEmployee">Dipendente</label><select id="planEmployee" required></select></div>
-        <div class="field"><label for="planStore">Negozio</label><select id="planStore" required></select></div>
-        <div class="field"><label for="planDate">Giorno</label><input id="planDate" type="date" required></div>
-        <div class="intervals-block wide"><div class="intervals-title"><div><label>Intervalli programmati</label><p>Puoi prevedere anche un doppio turno.</p></div><button type="button" class="button secondary" id="addPlanInterval">+ Aggiungi intervallo</button></div><div id="planIntervals"></div></div>
-        <div class="field wide"><label for="planNote">Nota facoltativa</label><input id="planNote" maxlength="120" placeholder="Es. apertura, sostituzione…"></div>
-        <div class="actions wide"><button type="button" class="button secondary hidden" id="cancelPlan">Annulla modifica</button><button class="button primary" type="submit" id="savePlan">Salva programmazione</button></div>
-      </form>
-      <div class="card table-card planning-list"><div class="table-title"><h3>Turni della settimana</h3></div><div class="table-wrap"><table><thead><tr><th>Giorno</th><th>Dipendente</th><th>Negozio</th><th>Orari</th><th>Stato</th><th></th></tr></thead><tbody id="planRows"></tbody></table></div></div>
+      <div id="receipt" class="receipt hidden"></div>
     </section>
 
     <section id="page-summary" class="page">
-      <div class="intro summary-head">
-        <div><p class="eyebrow">CONTROLLO ORE</p><h2>Riepilogo</h2></div>
-        <div class="filters">
-          <div class="field"><label for="summaryEmployee">Dipendente</label><select id="summaryEmployee"></select></div>
-          <div class="field"><label for="periodPreset">Periodo</label><select id="periodPreset"><option value="week">Settimana corrente</option><option value="month" selected>Mese corrente</option><option value="year">Anno corrente</option><option value="custom">Personalizzato</option></select></div>
-          <div class="field"><label for="fromDate">Dal</label><input type="date" id="fromDate"></div>
-          <div class="field"><label for="toDate">Al</label><input type="date" id="toDate"></div>
-          <button class="button primary" id="exportExcel">Scarica Excel</button>
-        </div>
+      <div class="title-row"><div><small>CONTROLLO ORE</small><h2>Riepilogo</h2></div><button type="button" id="downloadExcel" class="primary">Scarica Excel</button></div>
+      <div class="card filters">
+        <label>Dipendente<select id="summaryEmployee"></select></label>
+        <label>Periodo<select id="period"><option value="week">Settimana corrente</option><option value="month" selected>Mese corrente</option><option value="year">Anno corrente</option><option value="custom">Personalizzato</option></select></label>
+        <label>Dal<input id="fromDate" type="date"></label><label>Al<input id="toDate" type="date"></label>
       </div>
-      <details class="card export-picker" id="exportPicker">
-        <summary><span><strong>Dipendenti da includere nell’Excel</strong><small id="exportSelectionLabel">Tutti i dipendenti</small></span><span class="picker-arrow">⌄</span></summary>
-        <div class="picker-content"><label class="check-row all-row"><input type="checkbox" id="exportAll" checked><span>Tutti i dipendenti</span></label><div id="exportEmployeeOptions" class="employee-options"></div></div>
-      </details>
-      <div class="stats" id="stats"></div>
-      <div class="card table-card"><div class="table-title"><h3>Ore e turni per dipendente</h3></div><div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Negozio</th><th>Turni</th><th>Ore</th></tr></thead><tbody id="summaryRows"></tbody></table></div></div>
-      <div class="card table-card"><div class="table-title"><h3>Registrazioni del periodo</h3></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Negozio</th><th>Intervalli</th><th>Ore</th><th>Stato</th><th></th></tr></thead><tbody id="shiftRows"></tbody></table></div></div>
-      <div class="card table-card"><div class="table-title"><h3>Assenze del periodo</h3></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Tipo</th><th>Nota</th><th></th></tr></thead><tbody id="absenceRows"></tbody></table></div></div>
+      <details class="card export-options"><summary>Dipendenti da includere nell’Excel</summary><label class="check"><input id="exportAll" type="checkbox" checked> Tutti</label><div id="exportEmployees" class="checks"></div></details>
+      <div id="stats" class="stats"></div>
+      <div class="card table-card"><h3>Ore per dipendente e negozio</h3><div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Negozio</th><th>Turni</th><th>Ore</th></tr></thead><tbody id="aggregateRows"></tbody></table></div></div>
+      <div class="card table-card"><h3>Turni registrati</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Negozio</th><th>Orari</th><th>Ore</th><th></th></tr></thead><tbody id="shiftRows"></tbody></table></div></div>
+      <div class="card table-card"><h3>Assenze</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Dipendente</th><th>Tipo</th><th>Nota</th><th></th></tr></thead><tbody id="absenceRows"></tbody></table></div></div>
     </section>
 
     <section id="page-tips" class="page">
-      <div class="intro">
-        <div><p class="eyebrow">CALCOLO MENSILE</p><h2>Divisione delle mance</h2></div>
-        <p class="muted">La quota viene calcolata in base ai turni svolti nel negozio.</p>
-      </div>
-      <form id="tipsForm" class="card tips-form">
-        <div class="field"><label for="tipsMonth">Mese</label><input id="tipsMonth" type="month" required></div>
-        <div class="field"><label for="tipsStore">Negozio</label><select id="tipsStore" required></select></div>
-        <div class="field"><label for="tipsTotal">Totale mance</label><div class="money-input"><span>€</span><input id="tipsTotal" type="number" min="0.01" step="0.01" placeholder="0,00" required></div></div>
-        <button class="button primary" type="submit">Calcola ripartizione</button>
-      </form>
-      <div id="tipsResult" class="tips-result hidden"></div>
+      <div class="title-row"><div><small>CALCOLO MENSILE</small><h2>Divisione mance</h2></div></div>
+      <div class="card filters tips-filter"><label>Mese<input id="tipsMonth" type="month"></label><label>Negozio<select id="tipsStore"></select></label><label>Totale €<input id="tipsTotal" type="number" min="0.01" step="0.01"></label><button type="button" id="calculateTips" class="primary">Calcola</button></div>
+      <div id="tipsError" class="error hidden"></div><div id="tipsResult"></div>
     </section>
 
     <section id="page-manage" class="page">
-      <div class="intro"><div><p class="eyebrow">CONFIGURAZIONE</p><h2>Dipendenti e negozi</h2></div><p class="muted">Per ogni negozio scegli: Libero, Misto o Programmato. L’inserimento manuale resta sempre disponibile.</p></div>
+      <div class="title-row"><div><small>CONFIGURAZIONE</small><h2>Dipendenti e negozi</h2></div></div>
       <div class="manage-grid">
-        <div class="card manage-card"><div class="manage-title"><div><h3>Dipendenti</h3><p id="employeeCount" class="muted"></p></div></div><form id="employeeForm" class="inline-form"><input id="newEmployee" maxlength="50" placeholder="Nome e cognome" required><button class="button primary">Aggiungi</button></form><div id="employeeList" class="item-list"></div></div>
-        <div class="card manage-card"><div class="manage-title"><div><h3>Negozi</h3><p id="storeCount" class="muted"></p></div></div><form id="storeForm" class="inline-form"><input id="newStore" maxlength="50" placeholder="Nome del negozio" required><button class="button primary">Aggiungi</button></form><div id="storeList" class="item-list"></div></div>
+        <div class="card"><h3>Dipendenti <span id="employeeCount"></span></h3><div class="add-row"><input id="employeeName" placeholder="Nome e cognome" maxlength="50"><button type="button" id="addEmployee" class="primary">Aggiungi</button></div><div id="employeeList"></div></div>
+        <div class="card"><h3>Negozi <span id="storeCount"></span></h3><div class="add-row"><input id="storeName" placeholder="Nome negozio" maxlength="50"><button type="button" id="addStore" class="primary">Aggiungi</button></div><div id="storeList"></div></div>
       </div>
-      <div class="card backup-card"><div><h3>Backup dei dati</h3><p class="muted">Salva una copia di sicurezza o ripristina i dati su questo Mac.</p></div><div class="actions"><button class="button secondary" id="backupData">Salva backup</button><label class="button secondary file-button">Ripristina backup<input type="file" id="restoreData" accept="application/json"></label></div></div>
+      <div class="card backup"><div><h3>Backup</h3><p>Salva periodicamente una copia dei dati.</p></div><div class="actions"><button type="button" id="saveBackup" class="secondary">Salva backup</button><label class="secondary file-label">Ripristina<input id="restoreBackup" type="file" accept="application/json"></label></div></div>
     </section>
   </main>
-
-  <footer><span id="dataStatus">Archivio pronto</span> · I dati rimangono su questo Mac · Versione Web 2.0</footer>
-  <script src="app.js"></script>
+  <footer><span id="saveStatus">Nessuna modifica</span> · Versione nuova 1.0</footer>
+  <script src="xlsx.js"></script><script src="app.js"></script>
 </body>
 </html>
