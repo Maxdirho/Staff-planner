@@ -8,6 +8,7 @@
   var editingShiftId = '';
   var editingAbsenceId = '';
   var intervals = [{ start: '', end: '' }];
+  var aiImportRows = [];
 
   function byId(id) { return document.getElementById(id); }
   function id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -73,6 +74,14 @@
   function showError(id, text) { var box = byId(id); box.textContent = text; box.classList.remove('hidden'); }
   function clearError(id) { byId(id).classList.add('hidden'); }
 
+  function validateShiftValues(employeeId, storeId, date, shiftIntervals) {
+    if (!employeeId) return 'Seleziona il dipendente.';
+    if (!storeId) return 'Seleziona il negozio.';
+    if (!date) return 'Seleziona la data.';
+    if (!shiftIntervals.length || shiftIntervals.some(function (x) { return !x.start || !x.end; })) return 'Seleziona entrata e uscita per ogni intervallo.';
+    return '';
+  }
+
   function resetShift() {
     editingShiftId = '';
     byId('shiftEmployee').value = '';
@@ -85,10 +94,8 @@
   function saveShift() {
     clearError('shiftError'); syncIntervals();
     var employeeId = byId('shiftEmployee').value, storeId = byId('shiftStore').value, date = byId('shiftDate').value;
-    if (!employeeId) return showError('shiftError', 'Seleziona il dipendente.');
-    if (!storeId) return showError('shiftError', 'Seleziona il negozio.');
-    if (!date) return showError('shiftError', 'Seleziona la data.');
-    if (intervals.some(function (x) { return !x.start || !x.end; })) return showError('shiftError', 'Seleziona entrata e uscita per ogni intervallo.');
+    var validationError = validateShiftValues(employeeId, storeId, date, intervals);
+    if (validationError) return showError('shiftError', validationError);
     var record = { id: editingShiftId || id(), employeeId: employeeId, storeId: storeId, date: date, intervals: intervals.map(function (x) { return { start: x.start, end: x.end }; }), note: byId('shiftNote').value.trim() };
     var index = data.shifts.findIndex(function (x) { return x.id === record.id; });
     if (index < 0) data.shifts.push(record); else data.shifts[index] = record;
@@ -110,6 +117,107 @@
     if (!commit()) return showError('absenceError', 'L’assenza non è stata salvata.');
     byId('receipt').innerHTML = '<h3>✓ Assenza salvata</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(record.type) + '</p>';
     byId('receipt').classList.remove('hidden'); resetAbsence(); showAbsence(false); renderSummary();
+  }
+
+  function importTime(value) {
+    var clean = String(value || '').trim();
+    if (clean === '24:00') return '00:00';
+    return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clean) ? clean : '';
+  }
+
+  function findNamed(items, name) {
+    var target = String(name || '').trim().toLocaleLowerCase('it');
+    return items.find(function (item) { return item.name.toLocaleLowerCase('it') === target; });
+  }
+
+  function statusOptions(current) {
+    return ['ok', 'dubbio', 'errore'].map(function (value) {
+      return '<option value="' + value + '"' + (value === current ? ' selected' : '') + '>' + value + '</option>';
+    }).join('');
+  }
+
+  function renderAiImportRows() {
+    byId('aiImportRows').innerHTML = aiImportRows.map(function (row, index) {
+      return '<tr data-index="' + index + '" class="import-row status-' + row.status + '">' +
+        '<td><input class="import-date" type="date" value="' + escapeHtml(row.date) + '"></td>' +
+        '<td><input class="import-employee" value="' + escapeHtml(row.employee) + '" placeholder="Dipendente"></td>' +
+        '<td><input class="import-store" value="' + escapeHtml(row.store) + '" placeholder="Negozio"></td>' +
+        '<td><input class="import-start time-field" value="' + escapeHtml(row.start) + '" placeholder="HH:MM"></td>' +
+        '<td><input class="import-end time-field" value="' + escapeHtml(row.end) + '" placeholder="HH:MM"></td>' +
+        '<td><input class="import-note" value="' + escapeHtml(row.note) + '" placeholder="Facoltative"></td>' +
+        '<td><select class="import-status">' + statusOptions(row.status) + '</select>' + (row.validationError ? '<small class="row-error">' + escapeHtml(row.validationError) + '</small>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
+    byId('aiImportCount').textContent = aiImportRows.length + (aiImportRows.length === 1 ? ' riga' : ' righe');
+  }
+
+  function syncAiImportRows() {
+    aiImportRows = Array.from(document.querySelectorAll('#aiImportRows tr')).map(function (row) {
+      return {
+        date: row.querySelector('.import-date').value,
+        employee: row.querySelector('.import-employee').value.trim(),
+        store: row.querySelector('.import-store').value.trim(),
+        start: row.querySelector('.import-start').value.trim(),
+        end: row.querySelector('.import-end').value.trim(),
+        note: row.querySelector('.import-note').value.trim(),
+        status: row.querySelector('.import-status').value,
+        validationError: ''
+      };
+    });
+  }
+
+  function loadAiImportPreview(file) {
+    var store = active(data.stores)[0];
+    var storeNameValue = store ? store.name : 'Negozio principale';
+    aiImportRows = [
+      { date: '2026-07-02', employee: 'Beppe', store: storeNameValue, start: '17:00', end: '24:00', note: '', status: 'ok', validationError: '' },
+      { date: '2026-07-02', employee: 'Valqui', store: storeNameValue, start: '18:00', end: '24:00', note: 'Orario da verificare', status: 'dubbio', validationError: '' },
+      { date: '2026-07-02', employee: 'Palma', store: storeNameValue, start: '18:30', end: '24:00', note: 'Riga incompleta', status: 'errore', validationError: '' }
+    ];
+    byId('aiImportFileName').textContent = file.name;
+    byId('aiImportFileInfo').classList.remove('hidden');
+    byId('aiImportPreview').classList.remove('hidden');
+    byId('aiImportMessage').classList.add('hidden');
+    byId('confirmAiImport').disabled = false;
+    renderAiImportRows();
+  }
+
+  function resetAiImport() {
+    aiImportRows = [];
+    byId('aiImportFile').value = '';
+    byId('aiImportRows').innerHTML = '';
+    byId('aiImportFileInfo').classList.add('hidden');
+    byId('aiImportPreview').classList.add('hidden');
+    byId('aiImportMessage').classList.add('hidden');
+    byId('confirmAiImport').disabled = false;
+  }
+
+  function confirmAiImport() {
+    syncAiImportRows();
+    var imported = 0, excluded = 0;
+    aiImportRows.forEach(function (row) {
+      if (row.status === 'errore') { excluded++; return; }
+      var employee = findNamed(data.employees, row.employee), store = findNamed(data.stores, row.store);
+      var start = importTime(row.start), end = importTime(row.end);
+      var validationError = validateShiftValues(employee && employee.id, store && store.id, row.date, [{ start: start, end: end }]);
+      if (!employee) validationError = 'Dipendente non presente in Gestione.';
+      else if (!store) validationError = 'Negozio non presente in Gestione.';
+      else if (!start || !end) validationError = 'Orario non valido. Usa HH:MM.';
+      if (validationError) {
+        row.status = 'errore'; row.validationError = validationError; excluded++; return;
+      }
+      data.shifts.push({ id: id(), employeeId: employee.id, storeId: store.id, date: row.date, intervals: [{ start: start, end: end }], note: row.note });
+      imported++;
+    });
+    if (imported && !commit()) {
+      byId('aiImportMessage').textContent = 'Errore: il browser non consente il salvataggio.';
+      byId('aiImportMessage').className = 'import-message error';
+      return;
+    }
+    renderAiImportRows(); renderAll(); renderSummary();
+    byId('aiImportMessage').textContent = imported ? imported + (imported === 1 ? ' turno importato' : ' turni importati') + (excluded ? ' · ' + excluded + (excluded === 1 ? ' riga esclusa' : ' righe escluse') : '') + '.' : 'Nessun turno importato. Correggi le righe in errore e riprova.';
+    byId('aiImportMessage').className = 'import-message ' + (imported ? 'success' : 'error');
+    byId('confirmAiImport').disabled = imported > 0;
   }
 
   function addEntity(kind) {
@@ -189,6 +297,7 @@
     byId('addInterval').addEventListener('click', function () { syncIntervals(); intervals.push({ start: '', end: '' }); renderIntervals(); });
     byId('intervalList').addEventListener('change', updateDuration); byId('intervalList').addEventListener('click', function (e) { if (!e.target.classList.contains('remove')) return; syncIntervals(); intervals.splice(Number(e.target.closest('.interval-row').dataset.index), 1); renderIntervals(); });
     byId('saveShift').addEventListener('click', saveShift); byId('clearShift').addEventListener('click', resetShift); byId('showAbsence').addEventListener('click', function () { showAbsence(true); }); byId('cancelAbsence').addEventListener('click', function () { showAbsence(false); }); byId('saveAbsence').addEventListener('click', saveAbsence);
+    byId('aiImportFile').addEventListener('change', function () { if (this.files[0]) loadAiImportPreview(this.files[0]); }); byId('cancelAiImport').addEventListener('click', resetAiImport); byId('confirmAiImport').addEventListener('click', confirmAiImport);
     byId('addEmployee').addEventListener('click', function () { addEntity('employee'); }); byId('addStore').addEventListener('click', function () { addEntity('store'); });
     byId('page-manage').addEventListener('click', function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; commit(); renderAll(); });
     byId('period').addEventListener('change', function () { periodDates(); renderSummary(); }); byId('summaryEmployee').addEventListener('change', renderSummary); byId('fromDate').addEventListener('change', renderSummary); byId('toDate').addEventListener('change', renderSummary);
@@ -203,6 +312,6 @@
     byId('systemStatus').textContent = 'Sistema attivo · ' + data.shifts.length + ' turni salvati';
   }
 
-  window.__oreTest = { getData: function () { return JSON.parse(JSON.stringify(data)); }, saveShift: saveShift, saveAbsence: saveAbsence, allocateTips: allocateTips };
+  window.__oreTest = { getData: function () { return JSON.parse(JSON.stringify(data)); }, saveShift: saveShift, saveAbsence: saveAbsence, confirmAiImport: confirmAiImport, allocateTips: allocateTips };
   init();
 })();

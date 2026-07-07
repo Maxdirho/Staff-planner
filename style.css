@@ -437,6 +437,146 @@ td .secondary { min-height: 34px; padding: 6px 10px; }
 .tips-filter button { height: 44px; }
 .tip-amount { color: var(--brand-dark); font-weight: 850; }
 
+.feature-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  background: var(--brand-soft);
+  border: 1px solid #cbe4dc;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.import-upload {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.import-upload p,
+.import-preview-head p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.import-file-label { flex: 0 0 auto; }
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.file-info span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.file-info strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-preview-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 22px 2px 12px;
+}
+
+.preview-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.import-table-card { margin-bottom: 12px; }
+.import-table { min-width: 1000px; }
+
+.import-table th,
+.import-table td { padding: 9px 8px; vertical-align: top; }
+
+.import-table th:first-child,
+.import-table td:first-child { padding-left: 14px; }
+
+.import-table th:last-child,
+.import-table td:last-child { padding-right: 14px; }
+
+.import-table input,
+.import-table select {
+  height: 38px;
+  min-width: 118px;
+  padding-inline: 9px;
+  font-size: 12px;
+}
+
+.import-table .import-date { min-width: 132px; }
+.import-table .import-employee { min-width: 130px; }
+.import-table .import-store { min-width: 140px; }
+.import-table .time-field { min-width: 82px; width: 82px; }
+.import-table .import-note { min-width: 160px; }
+.import-table .import-status { min-width: 94px; font-weight: 800; text-transform: capitalize; }
+
+.import-row.status-ok .import-status { background: #e7f5ef; border-color: #b9dccf; color: var(--brand-dark); }
+.import-row.status-dubbio .import-status { background: #fff7df; border-color: #ead69a; color: #7a5b04; }
+.import-row.status-errore .import-status { background: #fff0ef; border-color: #e2b5b0; color: var(--danger); }
+
+.row-error {
+  max-width: 140px;
+  margin-top: 5px;
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.import-message {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.import-message.success { background: var(--brand-soft); border-color: #cbe4dc; color: var(--brand-dark); }
+.import-message.error { background: #fff0ef; border-color: #e2b5b0; color: var(--danger); }
+
+button:disabled,
+.primary:disabled {
+  background: #c8d2ce;
+  box-shadow: none;
+  color: #6b7b77;
+  cursor: not-allowed;
+  transform: none;
+}
+
 footer {
   padding: 19px;
   background: rgba(255, 255, 255, 0.55);
@@ -506,6 +646,11 @@ footer {
   .backup { align-items: stretch; flex-direction: column; gap: 14px; }
   .backup .actions { width: 100%; }
   .backup .actions > * { flex: 1; }
+  .import-upload { align-items: stretch; flex-direction: column; gap: 16px; }
+  .import-file-label { width: 100%; }
+  .file-info { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .import-preview-head { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .import-actions > * { flex: 1; }
   th, td { padding: 10px 12px; }
 }
 
@@ -519,6 +664,7 @@ footer {
   .item { align-items: flex-start; flex-direction: column; }
   .item > div { display: flex; width: 100%; gap: 6px; }
   .item > div button { flex: 1; }
+  .import-actions { flex-direction: column-reverse; }
 }
 
 @media (prefers-reduced-motion: reduce) {

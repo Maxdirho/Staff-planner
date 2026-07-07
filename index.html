@@ -10,6 +10,7 @@
   <header><div><small>GESTIONE PRESENZE</small><h1>Ore Dipendenti</h1></div><div id="systemStatus" class="status ok">Sistema attivo</div></header>
   <nav>
     <button type="button" data-page="entry" class="active">Inserisci</button>
+    <button type="button" data-page="import">Importa con AI</button>
     <button type="button" data-page="summary">Riepilogo</button>
     <button type="button" data-page="tips">Mance</button>
     <button type="button" data-page="manage">Gestione</button>
@@ -37,6 +38,21 @@
         <div class="actions span-2"><button type="button" id="cancelAbsence" class="secondary">Torna ai turni</button><button type="button" id="saveAbsence" class="primary">Salva assenza</button></div>
       </div>
       <div id="receipt" class="receipt hidden"></div>
+    </section>
+
+    <section id="page-import" class="page">
+      <div class="title-row"><div><small>IMPORTAZIONE ASSISTITA</small><h2>Importa con AI</h2></div><span class="feature-badge">Anteprima locale</span></div>
+      <div class="card import-upload">
+        <div><h3>Carica un documento</h3><p>PDF, immagine o screenshot del piano turni. In questa versione verranno mostrati dati dimostrativi.</p></div>
+        <label class="primary file-label import-file-label">Scegli file<input id="aiImportFile" type="file" accept="application/pdf,image/*"></label>
+      </div>
+      <div id="aiImportFileInfo" class="file-info hidden"><span>File caricato</span><strong id="aiImportFileName"></strong></div>
+      <div id="aiImportPreview" class="hidden">
+        <div class="import-preview-head"><div><h3>Turni riconosciuti</h3><p>Controlla e modifica i dati prima di confermare.</p></div><div id="aiImportCount" class="preview-count"></div></div>
+        <div class="card table-card import-table-card"><div class="table-wrap"><table class="import-table"><thead><tr><th>Data</th><th>Dipendente</th><th>Negozio</th><th>Ingresso</th><th>Uscita</th><th>Note</th><th>Stato</th></tr></thead><tbody id="aiImportRows"></tbody></table></div></div>
+        <div id="aiImportMessage" class="import-message hidden"></div>
+        <div class="import-actions"><button type="button" id="cancelAiImport" class="secondary">Annulla importazione</button><button type="button" id="confirmAiImport" class="primary">Conferma importazione</button></div>
+      </div>
     </section>
 
     <section id="page-summary" class="page">
