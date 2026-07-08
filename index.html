@@ -17,8 +17,12 @@
   </nav>
   <main>
     <section id="page-entry" class="page active">
-      <div class="title-row"><div><small>NUOVA REGISTRAZIONE</small><h2>Inserisci un turno</h2></div><button type="button" id="showAbsence" class="secondary">Registra un’assenza</button></div>
+      <div class="title-row"><div><small>NUOVA REGISTRAZIONE</small><h2>Inserisci turni</h2></div><button type="button" id="showAbsence" class="secondary">Registra un’assenza</button></div>
       <div id="entrySetup" class="notice hidden">Aggiungi almeno un dipendente e un negozio nella sezione Gestione.</div>
+      <div id="entryModeTabs" class="mode-tabs">
+        <button type="button" class="active" data-entry-mode="single">Turno singolo</button>
+        <button type="button" data-entry-mode="month">Mese per dipendente</button>
+      </div>
       <div id="shiftPanel" class="card grid">
         <label class="span-2">Dipendente<select id="shiftEmployee"></select></label>
         <label>Data<input id="shiftDate" type="date"></label>
@@ -36,6 +40,33 @@
         <label class="span-2">Nota facoltativa<input id="absenceNote" maxlength="120"></label>
         <div id="absenceError" class="error span-2 hidden"></div>
         <div class="actions span-2"><button type="button" id="cancelAbsence" class="secondary">Torna ai turni</button><button type="button" id="saveAbsence" class="primary">Salva assenza</button></div>
+      </div>
+      <div id="quickMonthPanel" class="hidden">
+        <div class="card quick-controls">
+          <label>Dipendente<select id="quickEmployee"></select></label>
+          <label>Mese<select id="quickMonth"></select></label>
+          <div class="quick-nav">
+            <button type="button" id="quickPrevEmployee" class="secondary">← Dipendente precedente</button>
+            <button type="button" id="quickNextEmployee" class="secondary">Dipendente successivo →</button>
+          </div>
+        </div>
+        <div id="quickMonthTotals" class="quick-totals">
+          <div><span>Ore segnate</span><strong id="quickTotalHours">0,00</strong></div>
+          <div><span>Turni</span><strong id="quickTotalShifts">0</strong></div>
+          <div><span>Assenze/riposi</span><strong id="quickTotalAbsences">0</strong></div>
+        </div>
+        <div class="quick-help">Compila il mese del dipendente selezionato. Se scegli un’assenza, lascia vuoti negozio e orari di quel giorno.</div>
+        <div class="card table-card quick-table-card">
+          <div class="table-wrap">
+            <table class="quick-table">
+              <thead><tr><th>Giorno</th><th>Negozio</th><th>Ingresso 1</th><th>Uscita 1</th><th>Ingresso 2</th><th>Uscita 2</th><th>Note</th><th>Assenza</th><th>Stato</th></tr></thead>
+              <tbody id="quickMonthRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="quickMonthError" class="error hidden"></div>
+        <div id="quickMonthMessage" class="receipt hidden"></div>
+        <div class="actions quick-actions"><button type="button" id="clearQuickMonth" class="secondary">Ricarica mese</button><button type="button" id="saveQuickMonth" class="primary">Salva mese dipendente</button></div>
       </div>
       <div id="receipt" class="receipt hidden"></div>
     </section>
