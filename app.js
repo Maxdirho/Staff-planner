@@ -207,23 +207,32 @@
     clearError('quickMonthError'); byId('quickMonthMessage').classList.add('hidden');
     var employeeId = byId('quickEmployee').value, month = byId('quickMonth').value;
     if (!employeeId || !month) {
-      byId('quickMonthRows').innerHTML = '<tr><td colspan="9">Seleziona dipendente e mese.</td></tr>';
+      byId('quickMonthRows').innerHTML = '<tr><td colspan="11">Seleziona dipendente e mese.</td></tr>';
       return;
     }
     byId('quickMonthRows').innerHTML = monthDays(month).map(function (date) {
       var shifts = data.shifts.filter(function (x) { return x.employeeId === employeeId && x.date === date; });
       var absence = data.absences.find(function (x) { return x.employeeId === employeeId && x.date === date; });
-      var firstShift = shifts[0], intervalsForRow = firstShift ? firstShift.intervals.slice(0, 2) : [];
-      var warning = shifts.length > 1 || (firstShift && firstShift.intervals.length > 2) ? 'Dati già presenti: verifica prima di salvare.' : '';
+      var savedTurns = [];
+      shifts.forEach(function (shift) {
+        shift.intervals.forEach(function (interval) {
+          savedTurns.push({ storeId: shift.storeId, start: interval.start, end: interval.end, note: shift.note || '' });
+        });
+      });
+      var overflow = savedTurns.length > 2;
+      var firstTurn = savedTurns[0] || {}, secondTurn = savedTurns[1] || {};
+      var warning = overflow ? 'Più di due turni già salvati: usa Turno singolo.' : '';
       var dateLabel = weekdayName(date) + ' ' + date.slice(8, 10);
-      return '<tr data-date="' + date + '">' +
+      return '<tr data-date="' + date + '"' + (overflow ? ' data-overflow="true"' : '') + '>' +
         '<td><strong>' + escapeHtml(dateLabel) + '</strong><span>' + formatDate(date) + '</span></td>' +
-        '<td><select class="quick-store">' + storeOptions(firstShift ? firstShift.storeId : '') + '</select></td>' +
-        '<td><input class="quick-start-1" type="time" step="900" value="' + escapeHtml(intervalsForRow[0] ? intervalsForRow[0].start : '') + '"></td>' +
-        '<td><input class="quick-end-1" type="time" step="900" value="' + escapeHtml(intervalsForRow[0] ? intervalsForRow[0].end : '') + '"></td>' +
-        '<td><input class="quick-start-2" type="time" step="900" value="' + escapeHtml(intervalsForRow[1] ? intervalsForRow[1].start : '') + '"></td>' +
-        '<td><input class="quick-end-2" type="time" step="900" value="' + escapeHtml(intervalsForRow[1] ? intervalsForRow[1].end : '') + '"></td>' +
-        '<td><input class="quick-note" maxlength="120" value="' + escapeHtml(absence ? absence.note || '' : firstShift ? firstShift.note || '' : '') + '"></td>' +
+        '<td><select class="quick-store-1">' + storeOptions(firstTurn.storeId || '') + '</select></td>' +
+        '<td><input class="quick-start-1" type="time" step="900" value="' + escapeHtml(firstTurn.start || '') + '"></td>' +
+        '<td><input class="quick-end-1" type="time" step="900" value="' + escapeHtml(firstTurn.end || '') + '"></td>' +
+        '<td><input class="quick-note-1" maxlength="120" value="' + escapeHtml(absence ? absence.note || '' : firstTurn.note || '') + '"></td>' +
+        '<td><select class="quick-store-2">' + storeOptions(secondTurn.storeId || '') + '</select></td>' +
+        '<td><input class="quick-start-2" type="time" step="900" value="' + escapeHtml(secondTurn.start || '') + '"></td>' +
+        '<td><input class="quick-end-2" type="time" step="900" value="' + escapeHtml(secondTurn.end || '') + '"></td>' +
+        '<td><input class="quick-note-2" maxlength="120" value="' + escapeHtml(secondTurn.note || '') + '"></td>' +
         '<td><select class="quick-absence">' + absenceOptions(absence ? absence.type : '') + '</select></td>' +
         '<td class="quick-state">' + (warning ? '<span class="quick-warning">' + warning + '</span>' : '—') + '</td>' +
       '</tr>';
@@ -252,22 +261,29 @@
     var employeeId = byId('quickEmployee').value, month = byId('quickMonth').value;
     var shifts = [], absences = [], errors = [];
     Array.from(document.querySelectorAll('#quickMonthRows tr[data-date]')).forEach(function (row) {
-      var date = row.dataset.date, storeId = row.querySelector('.quick-store').value, note = row.querySelector('.quick-note').value.trim(), absenceType = row.querySelector('.quick-absence').value;
-      var pairs = [
-        { start: row.querySelector('.quick-start-1').value, end: row.querySelector('.quick-end-1').value },
-        { start: row.querySelector('.quick-start-2').value, end: row.querySelector('.quick-end-2').value }
+      var date = row.dataset.date, absenceType = row.querySelector('.quick-absence').value;
+      var turns = [
+        { storeId: row.querySelector('.quick-store-1').value, start: row.querySelector('.quick-start-1').value, end: row.querySelector('.quick-end-1').value, note: row.querySelector('.quick-note-1').value.trim() },
+        { storeId: row.querySelector('.quick-store-2').value, start: row.querySelector('.quick-start-2').value, end: row.querySelector('.quick-end-2').value, note: row.querySelector('.quick-note-2').value.trim() }
       ];
-      var partial = pairs.some(function (x) { return (!!x.start && !x.end) || (!x.start && !!x.end); });
-      var intervalsForDay = pairs.filter(function (x) { return x.start && x.end; });
-      var hasShiftInput = !!storeId || intervalsForDay.length || partial;
-      row.classList.remove('quick-row-error'); row.querySelector('.quick-state').textContent = '—';
-      if (absenceType && hasShiftInput) errors.push({ row: row, message: 'Turno e assenza nello stesso giorno.' });
-      else if (absenceType) absences.push({ id: id(), employeeId: employeeId, date: date, type: absenceType, note: note });
-      else if (partial) errors.push({ row: row, message: 'Completa entrata e uscita.' });
-      else if (intervalsForDay.length || storeId) {
-        var validationError = validateShiftValues(employeeId, storeId, date, intervalsForDay, { replaceEmployeeId: employeeId, replaceMonth: month });
-        if (validationError) errors.push({ row: row, message: validationError });
-        else shifts.push({ id: id(), employeeId: employeeId, storeId: storeId, date: date, intervals: intervalsForDay, note: note });
+      var usedTurns = turns.filter(function (turn) { return turn.storeId || turn.start || turn.end; });
+      row.classList.remove('quick-row-error');
+      if (row.dataset.overflow === 'true') errors.push({ row: row, message: 'Più di due turni già salvati: il mese non può essere sovrascritto.' });
+      else {
+        row.querySelector('.quick-state').textContent = '—';
+        if (absenceType && usedTurns.length) errors.push({ row: row, message: 'Turno e assenza nello stesso giorno.' });
+        else if (absenceType) absences.push({ id: id(), employeeId: employeeId, date: date, type: absenceType, note: turns[0].note });
+        else {
+          var incomplete = usedTurns.some(function (turn) { return !turn.storeId || !turn.start || !turn.end; });
+          if (incomplete) errors.push({ row: row, message: 'Completa negozio, entrata e uscita.' });
+          else if (usedTurns.length === 2 && intervalsOverlap(usedTurns[0], usedTurns[1])) errors.push({ row: row, message: 'I due turni non possono sovrapporsi.' });
+          else usedTurns.forEach(function (turn) {
+            var interval = { start: turn.start, end: turn.end };
+            var validationError = validateShiftValues(employeeId, turn.storeId, date, [interval], { replaceEmployeeId: employeeId, replaceMonth: month });
+            if (validationError) errors.push({ row: row, message: validationError });
+            else shifts.push({ id: id(), employeeId: employeeId, storeId: turn.storeId, date: date, intervals: [interval], note: turn.note });
+          });
+        }
       }
     });
     return { employeeId: employeeId, month: month, shifts: shifts, absences: absences, errors: errors };
@@ -297,6 +313,18 @@
     if (index < 0) index = 0;
     byId('quickEmployee').value = employees[(index + step + employees.length) % employees.length].id;
     renderQuickMonth();
+  }
+
+  function moveQuickFieldToNextDay(event) {
+    if (event.key !== 'Enter' || !event.target.matches('input[type="time"]')) return;
+    var row = event.target.closest('tr[data-date]');
+    if (!row || !row.nextElementSibling) return;
+    var fieldClass = Array.from(event.target.classList).find(function (name) { return name.indexOf('quick-') === 0; });
+    if (!fieldClass) return;
+    var nextField = row.nextElementSibling.querySelector('.' + fieldClass);
+    if (!nextField) return;
+    event.preventDefault();
+    nextField.focus();
   }
 
   function importTime(value) {
@@ -480,7 +508,7 @@
     byId('intervalList').addEventListener('change', updateDuration); byId('intervalList').addEventListener('click', function (e) { if (!e.target.classList.contains('remove')) return; syncIntervals(); intervals.splice(Number(e.target.closest('.interval-row').dataset.index), 1); renderIntervals(); });
     byId('saveShift').addEventListener('click', saveShift); byId('clearShift').addEventListener('click', resetShift); byId('showAbsence').addEventListener('click', function () { showAbsence(true); }); byId('cancelAbsence').addEventListener('click', function () { showAbsence(false); }); byId('saveAbsence').addEventListener('click', saveAbsence);
     byId('quickEmployee').addEventListener('change', renderQuickMonth); byId('quickMonth').addEventListener('change', renderQuickMonth); byId('clearQuickMonth').addEventListener('click', renderQuickMonth); byId('saveQuickMonth').addEventListener('click', saveQuickMonth); byId('quickPrevEmployee').addEventListener('click', function () { changeQuickEmployee(-1); }); byId('quickNextEmployee').addEventListener('click', function () { changeQuickEmployee(1); });
-    byId('quickMonthRows').addEventListener('input', updateQuickMonthTotals); byId('quickMonthRows').addEventListener('change', updateQuickMonthTotals);
+    byId('quickMonthRows').addEventListener('input', updateQuickMonthTotals); byId('quickMonthRows').addEventListener('change', updateQuickMonthTotals); byId('quickMonthRows').addEventListener('keydown', moveQuickFieldToNextDay);
     byId('aiImportFile').addEventListener('change', function () { if (this.files[0]) loadAiImportPreview(this.files[0]); }); byId('cancelAiImport').addEventListener('click', resetAiImport); byId('confirmAiImport').addEventListener('click', confirmAiImport);
     byId('addEmployee').addEventListener('click', function () { addEntity('employee'); }); byId('addStore').addEventListener('click', function () { addEntity('store'); });
     byId('page-manage').addEventListener('click', function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; commit(); renderAll(); });

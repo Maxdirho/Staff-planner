@@ -104,42 +104,12 @@ header {
 }
 
 .brand-mark {
-  position: relative;
   flex: 0 0 auto;
   width: 46px;
   height: 46px;
-  overflow: hidden;
-  background: linear-gradient(135deg, var(--ocean), var(--turquoise) 62%, #73d8cb);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 16px;
+  display: block;
   box-shadow: 0 12px 24px rgba(8, 127, 137, 0.22);
-}
-
-.brand-mark::before {
-  position: absolute;
-  left: 8px;
-  bottom: 12px;
-  width: 28px;
-  height: 14px;
-  border: 4px solid rgba(255, 255, 255, 0.92);
-  border-top: 0;
-  border-right: 0;
-  border-radius: 0 0 0 20px;
-  transform: rotate(-12deg);
-  content: "";
-}
-
-.brand-mark::after {
-  position: absolute;
-  right: 9px;
-  top: 11px;
-  width: 13px;
-  height: 7px;
-  border: solid var(--sun);
-  border-width: 0 0 3px 3px;
-  border-radius: 1px;
-  transform: rotate(-45deg);
-  content: "";
+  border-radius: 15px;
 }
 
 .status {
@@ -455,7 +425,7 @@ button:active,
 }
 
 .quick-table-card { margin-bottom: 12px; }
-.quick-table { min-width: 1120px; }
+.quick-table { min-width: 1480px; }
 
 .quick-table th,
 .quick-table td {
@@ -483,8 +453,10 @@ button:active,
   font-size: 12px;
 }
 
-.quick-table .quick-store { min-width: 140px; }
-.quick-table .quick-note { min-width: 150px; }
+.quick-table .quick-store-1,
+.quick-table .quick-store-2 { min-width: 140px; }
+.quick-table .quick-note-1,
+.quick-table .quick-note-2 { min-width: 135px; }
 .quick-table .quick-absence { min-width: 112px; }
 
 .quick-state {
