@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ore Dipendenti — Nuova base</title>
+  <title>Staff Planner — Endless Summer</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header><div><small>GESTIONE PRESENZE</small><h1>Ore Dipendenti</h1></div><div id="systemStatus" class="status ok">Sistema attivo</div></header>
+  <header><div class="brand-block"><span class="brand-mark" aria-hidden="true"></span><div><small>STAFF PLANNER</small><h1>Staff Planner</h1></div></div><div id="systemStatus" class="status ok">Tutto pronto</div></header>
   <nav>
     <button type="button" data-page="entry" class="active">Inserisci</button>
     <button type="button" data-page="import">Importa con AI</button>
@@ -18,7 +18,7 @@
   <main>
     <section id="page-entry" class="page active">
       <div class="title-row"><div><small>NUOVA REGISTRAZIONE</small><h2>Inserisci turni</h2></div><button type="button" id="showAbsence" class="secondary">Registra un’assenza</button></div>
-      <div id="entrySetup" class="notice hidden">Aggiungi almeno un dipendente e un negozio nella sezione Gestione.</div>
+      <div id="entrySetup" class="notice hidden">Iniziamo? Aggiungi almeno un dipendente e un negozio nella sezione Gestione.</div>
       <div id="entryModeTabs" class="mode-tabs">
         <button type="button" class="active" data-entry-mode="single">Turno singolo</button>
         <button type="button" data-entry-mode="month">Mese per dipendente</button>
@@ -87,7 +87,7 @@
     </section>
 
     <section id="page-summary" class="page">
-      <div class="title-row"><div><small>CONTROLLO ORE</small><h2>Riepilogo</h2></div><button type="button" id="downloadExcel" class="primary">Scarica Excel</button></div>
+      <div class="title-row"><div><small>CONTROLLO ORE</small><h2>Riepilogo</h2></div><button type="button" id="downloadExcel" class="primary">Esporta Excel</button></div>
       <div class="card filters">
         <label>Dipendente<select id="summaryEmployee"></select></label>
         <label>Periodo<select id="period"><option value="week">Settimana corrente</option><option value="month" selected>Mese corrente</option><option value="year">Anno corrente</option><option value="custom">Personalizzato</option></select></label>
@@ -112,10 +112,10 @@
         <div class="card"><h3>Dipendenti <span id="employeeCount"></span></h3><div class="add-row"><input id="employeeName" placeholder="Nome e cognome" maxlength="50"><button type="button" id="addEmployee" class="primary">Aggiungi</button></div><div id="employeeList"></div></div>
         <div class="card"><h3>Negozi <span id="storeCount"></span></h3><div class="add-row"><input id="storeName" placeholder="Nome negozio" maxlength="50"><button type="button" id="addStore" class="primary">Aggiungi</button></div><div id="storeList"></div></div>
       </div>
-      <div class="card backup"><div><h3>Backup</h3><p>Salva periodicamente una copia dei dati.</p></div><div class="actions"><button type="button" id="saveBackup" class="secondary">Salva backup</button><label class="secondary file-label">Ripristina<input id="restoreBackup" type="file" accept="application/json"></label></div></div>
+      <div class="card backup"><div><h3>Backup</h3><p>Metti al sicuro il lavoro fatto.</p></div><div class="actions"><button type="button" id="saveBackup" class="secondary">Metti al sicuro</button><label class="secondary file-label">Ripristina<input id="restoreBackup" type="file" accept="application/json"></label></div></div>
     </section>
   </main>
-  <footer><span id="saveStatus">Nessuna modifica</span> · Versione nuova 1.0</footer>
+  <footer><span id="saveStatus">Tutto tranquillo</span> · Endless Summer 1.0</footer>
   <script src="xlsx.js"></script><script src="storage.js"></script><script src="app.js"></script>
 </body>
 </html>

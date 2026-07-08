@@ -20,11 +20,11 @@
   function euro(cents) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100); }
   function commit() {
     if (storage.saveData(data)) {
-      byId('saveStatus').textContent = 'Dati salvati alle ' + new Date().toLocaleTimeString('it-IT');
+      byId('saveStatus').textContent = 'Salvato alle ' + new Date().toLocaleTimeString('it-IT');
       byId('saveStatus').style.color = '#126b63';
       return true;
     }
-    byId('saveStatus').textContent = 'Errore: il browser non consente il salvataggio';
+    byId('saveStatus').textContent = 'C’è qualcosa da sistemare: il browser non sta salvando';
     byId('saveStatus').style.color = '#a83a34';
     return false;
   }
@@ -128,7 +128,7 @@
     if (index < 0) data.shifts.push(record); else data.shifts[index] = record;
     if (!commit()) return showError('shiftError', 'Il turno non è stato salvato. Controlla le impostazioni del browser.');
     var total = shiftMinutes(record);
-    byId('receipt').innerHTML = '<h3>✓ Turno salvato</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(storeName(record.storeId)) + '</p><p>' + record.intervals.map(function (x) { return x.start + '–' + x.end; }).join(' / ') + ' · <strong>' + decimalHours(total).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' ore</strong></p>';
+    byId('receipt').innerHTML = '<h3>✓ Turno messo al sicuro</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(storeName(record.storeId)) + '</p><p>' + record.intervals.map(function (x) { return x.start + '–' + x.end; }).join(' / ') + ' · <strong>' + decimalHours(total).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' ore</strong></p>';
     byId('receipt').classList.remove('hidden');
     resetShift(); renderSummary();
   }
@@ -143,7 +143,7 @@
     var record = { id: editingAbsenceId || id(), employeeId: employeeId, date: date, type: byId('absenceType').value, note: byId('absenceNote').value.trim() };
     var index = data.absences.findIndex(function (x) { return x.id === record.id; }); if (index < 0) data.absences.push(record); else data.absences[index] = record;
     if (!commit()) return showError('absenceError', 'L’assenza non è stata salvata.');
-    byId('receipt').innerHTML = '<h3>✓ Assenza salvata</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(record.type) + '</p>';
+    byId('receipt').innerHTML = '<h3>✓ Assenza segnata</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(record.type) + '</p>';
     byId('receipt').classList.remove('hidden'); resetAbsence(); showAbsence(false); renderSummary();
   }
 
@@ -288,7 +288,7 @@
     data.absences = data.absences.filter(function (x) { return !(x.employeeId === collected.employeeId && x.date.indexOf(collected.month) === 0); }).concat(collected.absences);
     if (!commit()) return showError('quickMonthError', 'Il mese non è stato salvato. Controlla le impostazioni del browser.');
     renderSummary(); renderQuickMonth();
-    byId('quickMonthMessage').innerHTML = '<h3>✓ Mese salvato</h3><p><strong>' + escapeHtml(employeeName(collected.employeeId)) + '</strong> · ' + collected.month + ' · ' + collected.shifts.length + ' turni · ' + collected.absences.length + ' assenze/riposi</p>';
+    byId('quickMonthMessage').innerHTML = '<h3>✓ Mese salvato, lavoro sotto controllo</h3><p><strong>' + escapeHtml(employeeName(collected.employeeId)) + '</strong> · ' + collected.month + ' · ' + collected.shifts.length + ' turni · ' + collected.absences.length + ' assenze/riposi</p>';
     byId('quickMonthMessage').classList.remove('hidden');
   }
   function changeQuickEmployee(step) {
@@ -390,7 +390,7 @@
       imported++;
     });
     if (imported && !commit()) {
-      byId('aiImportMessage').textContent = 'Errore: il browser non consente il salvataggio.';
+      byId('aiImportMessage').textContent = 'C’è qualcosa da sistemare: il browser non sta salvando.';
       byId('aiImportMessage').className = 'import-message error';
       return;
     }
@@ -441,7 +441,7 @@
     byId('absenceRows').innerHTML = result.absences.map(function (x) { return '<tr><td>' + formatDate(x.date) + '</td><td><strong>' + escapeHtml(employeeName(x.employeeId)) + '</strong></td><td>' + escapeHtml(x.type) + '</td><td>' + escapeHtml(x.note) + '</td><td><button type="button" class="secondary delete-absence" data-id="' + x.id + '">Elimina</button></td></tr>'; }).join('') || empty(5);
   }
   function stat(label, value) { return '<div class="stat"><span>' + label + '</span><strong>' + value + '</strong></div>'; }
-  function empty(cols) { return '<tr><td colspan="' + cols + '">Nessun dato nel periodo.</td></tr>'; }
+  function empty(cols) { return '<tr><td colspan="' + cols + '">Iniziamo? Non ci sono ancora dati in questo periodo.</td></tr>'; }
 
   function allocateTips(totalCents, rows) {
     var totalTurns = rows.reduce(function (sum, x) { return sum + x.turns; }, 0);
@@ -493,7 +493,7 @@
 
   function init() {
     byId('shiftDate').value = byId('absenceDate').value = today(); byId('tipsMonth').value = today().slice(0, 7); periodDates(); bind(); renderIntervals(); renderAll();
-    byId('systemStatus').textContent = 'Sistema attivo · ' + data.shifts.length + ' turni salvati';
+    byId('systemStatus').textContent = 'Tutto pronto · ' + data.shifts.length + ' turni salvati';
   }
 
   window.__oreTest = { getData: function () { return JSON.parse(JSON.stringify(data)); }, saveShift: saveShift, saveAbsence: saveAbsence, saveQuickMonth: saveQuickMonth, renderQuickMonth: renderQuickMonth, setEntryMode: setEntryMode, confirmAiImport: confirmAiImport, allocateTips: allocateTips };
