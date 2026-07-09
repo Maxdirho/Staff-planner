@@ -10,6 +10,8 @@
   var intervals = [{ start: '', end: '' }];
   var aiImportRows = [];
   var entryMode = 'single';
+  var exportBusy = false;
+  var saveFlashTimer = null;
 
   function byId(id) { return document.getElementById(id); }
   function id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -20,8 +22,13 @@
   function euro(cents) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100); }
   function commit() {
     if (storage.saveData(data)) {
-      byId('saveStatus').textContent = 'Salvato alle ' + new Date().toLocaleTimeString('it-IT');
-      byId('saveStatus').style.color = '#126b63';
+      var status = byId('saveStatus');
+      status.textContent = 'Salvato automaticamente · ' + new Date().toLocaleTimeString('it-IT');
+      status.style.color = '#126b63';
+      status.classList.remove('save-flash');
+      window.clearTimeout(saveFlashTimer);
+      window.requestAnimationFrame(function () { status.classList.add('save-flash'); });
+      saveFlashTimer = window.setTimeout(function () { status.classList.remove('save-flash'); }, 1400);
       return true;
     }
     byId('saveStatus').textContent = 'C’è qualcosa da sistemare: il browser non sta salvando';
@@ -31,6 +38,10 @@
   function employeeName(employeeId) { var x = data.employees.find(function (e) { return e.id === employeeId; }); return x ? x.name : '—'; }
   function storeName(storeId) { var x = data.stores.find(function (s) { return s.id === storeId; }); return x ? x.name : '—'; }
   function active(items) { return items.filter(function (x) { return x.active !== false; }).slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }); }
+  function onlyActiveStoreId() {
+    var stores = active(data.stores);
+    return stores.length === 1 ? stores[0].id : '';
+  }
 
   function minutes(start, end) {
     var a = start.split(':').map(Number), b = end.split(':').map(Number);
@@ -52,7 +63,7 @@
   function formatDate(value) { return new Intl.DateTimeFormat('it-IT').format(new Date(value + 'T12:00:00')); }
   function timeOptions(selected) {
     var html = '<option value="">Scegli…</option>';
-    for (var m = 0; m < 1440; m += 15) {
+    for (var m = 0; m < 1440; m += 5) {
       var value = pad(Math.floor(m / 60)) + ':' + pad(m % 60);
       html += '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + value + '</option>';
     }
@@ -112,7 +123,7 @@
   function resetShift() {
     editingShiftId = '';
     byId('shiftEmployee').value = '';
-    byId('shiftStore').value = '';
+    byId('shiftStore').value = onlyActiveStoreId();
     byId('shiftDate').value = today();
     byId('shiftNote').value = '';
     intervals = [{ start: '', end: '' }];
@@ -256,6 +267,16 @@
     byId('quickTotalHours').textContent = decimalHours(totalMinutes).toLocaleString('it-IT', { minimumFractionDigits: 2 });
     byId('quickTotalShifts').textContent = totalShifts;
     byId('quickTotalAbsences').textContent = totalAbsences;
+  }
+  function autoSelectQuickStore(event) {
+    if (!event.target.matches('.quick-start-1, .quick-end-1, .quick-start-2, .quick-end-2')) return;
+    var storeId = onlyActiveStoreId();
+    if (!storeId) return;
+    var row = event.target.closest('tr[data-date]');
+    if (!row) return;
+    var slot = event.target.classList.contains('quick-start-2') || event.target.classList.contains('quick-end-2') ? '2' : '1';
+    var store = row.querySelector('.quick-store-' + slot);
+    if (store && !store.value && event.target.value) store.value = storeId;
   }
   function collectQuickMonth() {
     var employeeId = byId('quickEmployee').value, month = byId('quickMonth').value;
@@ -491,14 +512,45 @@
     var current = { shiftEmployee: byId('shiftEmployee').value, shiftStore: byId('shiftStore').value, absenceEmployee: byId('absenceEmployee').value, quickEmployee: byId('quickEmployee').value, quickMonth: byId('quickMonth').value, summaryEmployee: byId('summaryEmployee').value, tipsStore: byId('tipsStore').value };
     fillSelect(byId('shiftEmployee'), data.employees, 'Scegli…', current.shiftEmployee, false); fillSelect(byId('absenceEmployee'), data.employees, 'Scegli…', current.absenceEmployee, false); fillSelect(byId('quickEmployee'), data.employees, 'Scegli…', current.quickEmployee, false); fillSelect(byId('summaryEmployee'), data.employees, 'Tutti', current.summaryEmployee, true);
     fillQuickMonthSelect(current.quickMonth);
-    fillSelect(byId('shiftStore'), data.stores, 'Scegli…', current.shiftStore, false); fillSelect(byId('tipsStore'), data.stores, 'Scegli…', current.tipsStore, true);
+    fillSelect(byId('shiftStore'), data.stores, 'Scegli…', current.shiftStore || onlyActiveStoreId(), false); fillSelect(byId('tipsStore'), data.stores, 'Scegli…', current.tipsStore, true);
     renderEntities(); renderExportEmployees(); renderSummary(); var ready = active(data.employees).length && active(data.stores).length; byId('entrySetup').classList.toggle('hidden', !!ready); byId('entryModeTabs').classList.toggle('hidden', !ready); setEntryMode(entryMode);
   }
   function renderExportEmployees() { byId('exportEmployees').innerHTML = data.employees.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }).map(function (x) { return '<label class="check"><input type="checkbox" class="export-employee" value="' + x.id + '"> ' + escapeHtml(x.name) + '</label>'; }).join(''); }
 
   function backup() { storage.downloadBackup(data, 'backup-ore-' + today() + '.json'); }
   function restore(file) { storage.restoreBackup(file, function (parsed) { if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; commit(); renderAll(); resetShift(); }, function () { alert('Backup non valido.'); }); }
-  function exportExcel() { var ids = byId('exportAll').checked ? null : Array.from(document.querySelectorAll('.export-employee:checked')).map(function (x) { return x.value; }); if (ids && !ids.length) return alert('Seleziona almeno un dipendente.'); window.XlsxExporter.download(data, byId('fromDate').value, byId('toDate').value, ids, employeeName, storeName); }
+  function slug(value) {
+    return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'dipendente';
+  }
+  function exportEmployeeSlug(ids) {
+    if (!ids) return 'tutti-dipendenti';
+    if (ids.length > 4) return 'selezionati-' + ids.length + '-dipendenti';
+    return ids.map(function (employeeId) { return slug(employeeName(employeeId)); }).join('-');
+  }
+  function exportExcel() {
+    if (exportBusy) return;
+    var ids = byId('exportAll').checked ? null : Array.from(document.querySelectorAll('.export-employee:checked')).map(function (x) { return x.value; });
+    if (ids && !ids.length) return alert('Seleziona almeno un dipendente.');
+    var button = byId('downloadExcel'), status = byId('exportStatus'), original = button.textContent, from = byId('fromDate').value, to = byId('toDate').value;
+    exportBusy = true;
+    button.disabled = true;
+    button.classList.add('is-loading');
+    button.textContent = 'Esporto…';
+    status.textContent = '';
+    status.classList.add('hidden');
+    var fileName = 'riepilogo-ore-' + exportEmployeeSlug(ids) + '-' + from + '_' + to + '.xlsx';
+    var ok = window.XlsxExporter.download(data, from, to, ids, employeeName, storeName, fileName);
+    if (ok !== false) {
+      status.textContent = 'Excel esportato';
+      status.classList.remove('hidden');
+    }
+    window.setTimeout(function () {
+      exportBusy = false;
+      button.disabled = false;
+      button.classList.remove('is-loading');
+      button.textContent = original;
+    }, 1400);
+  }
 
   function openPage(name) { document.querySelectorAll('.page').forEach(function (x) { x.classList.toggle('active', x.id === 'page-' + name); }); document.querySelectorAll('nav button').forEach(function (x) { x.classList.toggle('active', x.dataset.page === name); }); if (name === 'summary') renderSummary(); }
   function bind() {
@@ -508,7 +560,7 @@
     byId('intervalList').addEventListener('change', updateDuration); byId('intervalList').addEventListener('click', function (e) { if (!e.target.classList.contains('remove')) return; syncIntervals(); intervals.splice(Number(e.target.closest('.interval-row').dataset.index), 1); renderIntervals(); });
     byId('saveShift').addEventListener('click', saveShift); byId('clearShift').addEventListener('click', resetShift); byId('showAbsence').addEventListener('click', function () { showAbsence(true); }); byId('cancelAbsence').addEventListener('click', function () { showAbsence(false); }); byId('saveAbsence').addEventListener('click', saveAbsence);
     byId('quickEmployee').addEventListener('change', renderQuickMonth); byId('quickMonth').addEventListener('change', renderQuickMonth); byId('clearQuickMonth').addEventListener('click', renderQuickMonth); byId('saveQuickMonth').addEventListener('click', saveQuickMonth); byId('quickPrevEmployee').addEventListener('click', function () { changeQuickEmployee(-1); }); byId('quickNextEmployee').addEventListener('click', function () { changeQuickEmployee(1); });
-    byId('quickMonthRows').addEventListener('input', updateQuickMonthTotals); byId('quickMonthRows').addEventListener('change', updateQuickMonthTotals); byId('quickMonthRows').addEventListener('keydown', moveQuickFieldToNextDay);
+    byId('quickMonthRows').addEventListener('input', function (event) { autoSelectQuickStore(event); updateQuickMonthTotals(); }); byId('quickMonthRows').addEventListener('change', function (event) { autoSelectQuickStore(event); updateQuickMonthTotals(); }); byId('quickMonthRows').addEventListener('keydown', moveQuickFieldToNextDay);
     byId('aiImportFile').addEventListener('change', function () { if (this.files[0]) loadAiImportPreview(this.files[0]); }); byId('cancelAiImport').addEventListener('click', resetAiImport); byId('confirmAiImport').addEventListener('click', confirmAiImport);
     byId('addEmployee').addEventListener('click', function () { addEntity('employee'); }); byId('addStore').addEventListener('click', function () { addEntity('store'); });
     byId('page-manage').addEventListener('click', function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; commit(); renderAll(); });
