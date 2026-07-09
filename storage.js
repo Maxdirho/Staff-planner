@@ -3,6 +3,7 @@
 
   var STORAGE_KEY = 'ore-dipendenti-clean-v1';
   var DATA_KEYS = ['employees', 'stores', 'shifts', 'absences'];
+  var SQLITE_STATE_KEY = 'main';
 
   function defaultData() {
     return { employees: [], stores: [], shifts: [], absences: [] };
@@ -22,20 +23,73 @@
     });
   }
 
-  function loadData() {
+  function tauriInvoke() {
+    return global.__TAURI__ && global.__TAURI__.core && typeof global.__TAURI__.core.invoke === 'function'
+      ? global.__TAURI__.core.invoke
+      : null;
+  }
+
+  function readLocalData() {
     try {
       var saved = global.localStorage.getItem(STORAGE_KEY);
-      return saved === null ? defaultData() : normalizeData(JSON.parse(saved));
+      if (saved === null) return { exists: false, data: defaultData() };
+      var parsed = JSON.parse(saved);
+      return { exists: true, data: isValidData(parsed) ? normalizeData(parsed) : defaultData() };
     } catch (error) {
-      return defaultData();
+      return { exists: false, data: defaultData() };
     }
   }
 
-  function saveData(data) {
+  function saveLocalData(data) {
     try {
       global.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeData(data)));
       return true;
     } catch (error) {
+      return false;
+    }
+  }
+
+  function hasContent(data) {
+    data = normalizeData(data);
+    return DATA_KEYS.some(function (key) { return data[key].length > 0; });
+  }
+
+  async function loadData() {
+    var local = readLocalData();
+    var invoke = tauriInvoke();
+    if (!invoke) return local.data;
+
+    try {
+      var sqliteValue = await invoke('load_data', { key: SQLITE_STATE_KEY });
+      if (sqliteValue) {
+        var sqliteData = JSON.parse(sqliteValue);
+        if (!isValidData(sqliteData)) throw new Error('Struttura SQLite non valida');
+        sqliteData = normalizeData(sqliteData);
+        saveLocalData(sqliteData);
+        return sqliteData;
+      }
+      if (local.exists && hasContent(local.data)) {
+        await invoke('save_data', { key: SQLITE_STATE_KEY, value: JSON.stringify(normalizeData(local.data)) });
+        return local.data;
+      }
+      return defaultData();
+    } catch (error) {
+      console.error('Impossibile leggere i dati SQLite, uso localStorage come fallback.', error);
+      return local.data;
+    }
+  }
+
+  async function saveData(data) {
+    data = normalizeData(data);
+    saveLocalData(data);
+    var invoke = tauriInvoke();
+    if (!invoke) return true;
+
+    try {
+      await invoke('save_data', { key: SQLITE_STATE_KEY, value: JSON.stringify(data) });
+      return true;
+    } catch (error) {
+      console.error('Impossibile salvare i dati in SQLite.', error);
       return false;
     }
   }
@@ -69,6 +123,7 @@
     defaultData: defaultData,
     normalizeData: normalizeData,
     isValidData: isValidData,
+    isTauri: function () { return !!tauriInvoke(); },
     loadData: loadData,
     saveData: saveData,
     downloadBackup: downloadBackup,

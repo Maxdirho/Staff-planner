@@ -4,7 +4,7 @@
   var MAX_EMPLOYEES = 15;
   var MAX_STORES = 5;
   var storage = window.StaffPlannerStorage;
-  var data = storage.loadData();
+  var data = storage.defaultData();
   var editingShiftId = '';
   var editingAbsenceId = '';
   var intervals = [{ start: '', end: '' }];
@@ -20,8 +20,8 @@
   function today() { return inputDate(new Date()); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
   function euro(cents) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100); }
-  function commit() {
-    if (storage.saveData(data)) {
+  async function commit() {
+    if (await storage.saveData(data)) {
       var status = byId('saveStatus');
       status.textContent = 'Salvato automaticamente · ' + new Date().toLocaleTimeString('it-IT');
       status.style.color = '#126b63';
@@ -129,7 +129,7 @@
     intervals = [{ start: '', end: '' }];
     clearError('shiftError'); renderIntervals();
   }
-  function saveShift() {
+  async function saveShift() {
     clearError('shiftError'); syncIntervals();
     var employeeId = byId('shiftEmployee').value, storeId = byId('shiftStore').value, date = byId('shiftDate').value;
     var validationError = validateShiftValues(employeeId, storeId, date, intervals, { excludeShiftId: editingShiftId });
@@ -137,7 +137,7 @@
     var record = { id: editingShiftId || id(), employeeId: employeeId, storeId: storeId, date: date, intervals: intervals.map(function (x) { return { start: x.start, end: x.end }; }), note: byId('shiftNote').value.trim() };
     var index = data.shifts.findIndex(function (x) { return x.id === record.id; });
     if (index < 0) data.shifts.push(record); else data.shifts[index] = record;
-    if (!commit()) return showError('shiftError', 'Il turno non è stato salvato. Controlla le impostazioni del browser.');
+    if (!(await commit())) return showError('shiftError', 'Il turno non è stato salvato. Controlla le impostazioni del browser.');
     var total = shiftMinutes(record);
     byId('receipt').innerHTML = '<h3>✓ Turno messo al sicuro</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(storeName(record.storeId)) + '</p><p>' + record.intervals.map(function (x) { return x.start + '–' + x.end; }).join(' / ') + ' · <strong>' + decimalHours(total).toLocaleString('it-IT', { minimumFractionDigits: 2 }) + ' ore</strong></p>';
     byId('receipt').classList.remove('hidden');
@@ -146,14 +146,14 @@
 
   function showAbsence(show) { byId('shiftPanel').classList.toggle('hidden', show); byId('absencePanel').classList.toggle('hidden', !show); byId('showAbsence').classList.toggle('hidden', show); }
   function resetAbsence() { editingAbsenceId = ''; byId('absenceEmployee').value = ''; byId('absenceDate').value = today(); byId('absenceNote').value = ''; clearError('absenceError'); }
-  function saveAbsence() {
+  async function saveAbsence() {
     clearError('absenceError'); var employeeId = byId('absenceEmployee').value, date = byId('absenceDate').value;
     if (!employeeId) return showError('absenceError', 'Seleziona il dipendente.');
     if (!date) return showError('absenceError', 'Seleziona la data.');
     if (data.shifts.some(function (x) { return x.employeeId === employeeId && x.date === date; })) return showError('absenceError', 'Esiste già un turno per questo dipendente in questa data.');
     var record = { id: editingAbsenceId || id(), employeeId: employeeId, date: date, type: byId('absenceType').value, note: byId('absenceNote').value.trim() };
     var index = data.absences.findIndex(function (x) { return x.id === record.id; }); if (index < 0) data.absences.push(record); else data.absences[index] = record;
-    if (!commit()) return showError('absenceError', 'L’assenza non è stata salvata.');
+    if (!(await commit())) return showError('absenceError', 'L’assenza non è stata salvata.');
     byId('receipt').innerHTML = '<h3>✓ Assenza segnata</h3><p><strong>' + escapeHtml(employeeName(record.employeeId)) + '</strong> · ' + formatDate(record.date) + ' · ' + escapeHtml(record.type) + '</p>';
     byId('receipt').classList.remove('hidden'); resetAbsence(); showAbsence(false); renderSummary();
   }
@@ -309,7 +309,7 @@
     });
     return { employeeId: employeeId, month: month, shifts: shifts, absences: absences, errors: errors };
   }
-  function saveQuickMonth() {
+  async function saveQuickMonth() {
     clearError('quickMonthError'); byId('quickMonthMessage').classList.add('hidden');
     var collected = collectQuickMonth();
     if (!collected.employeeId) return showError('quickMonthError', 'Seleziona il dipendente.');
@@ -323,7 +323,7 @@
     }
     data.shifts = data.shifts.filter(function (x) { return !(x.employeeId === collected.employeeId && x.date.indexOf(collected.month) === 0); }).concat(collected.shifts);
     data.absences = data.absences.filter(function (x) { return !(x.employeeId === collected.employeeId && x.date.indexOf(collected.month) === 0); }).concat(collected.absences);
-    if (!commit()) return showError('quickMonthError', 'Il mese non è stato salvato. Controlla le impostazioni del browser.');
+    if (!(await commit())) return showError('quickMonthError', 'Il mese non è stato salvato. Controlla le impostazioni del browser.');
     renderSummary(); renderQuickMonth();
     byId('quickMonthMessage').innerHTML = '<h3>✓ Mese salvato, lavoro sotto controllo</h3><p><strong>' + escapeHtml(employeeName(collected.employeeId)) + '</strong> · ' + collected.month + ' · ' + collected.shifts.length + ' turni · ' + collected.absences.length + ' assenze/riposi</p>';
     byId('quickMonthMessage').classList.remove('hidden');
@@ -421,7 +421,7 @@
     byId('confirmAiImport').disabled = false;
   }
 
-  function confirmAiImport() {
+  async function confirmAiImport() {
     syncAiImportRows();
     var imported = 0, excluded = 0;
     aiImportRows.forEach(function (row) {
@@ -438,7 +438,7 @@
       data.shifts.push({ id: id(), employeeId: employee.id, storeId: store.id, date: row.date, intervals: [{ start: start, end: end }], note: row.note });
       imported++;
     });
-    if (imported && !commit()) {
+    if (imported && !(await commit())) {
       byId('aiImportMessage').textContent = 'C’è qualcosa da sistemare: il browser non sta salvando.';
       byId('aiImportMessage').className = 'import-message error';
       return;
@@ -449,12 +449,12 @@
     byId('confirmAiImport').disabled = imported > 0;
   }
 
-  function addEntity(kind) {
+  async function addEntity(kind) {
     var isEmployee = kind === 'employee', input = byId(isEmployee ? 'employeeName' : 'storeName'), list = isEmployee ? data.employees : data.stores, limit = isEmployee ? MAX_EMPLOYEES : MAX_STORES;
     var name = input.value.trim(); if (!name) return;
     if (active(list).length >= limit) return alert('Limite massimo di elementi attivi: ' + limit);
     if (list.some(function (x) { return x.name.toLowerCase() === name.toLowerCase(); })) return alert('Nome già presente.');
-    list.push({ id: id(), name: name, active: true }); input.value = ''; commit(); renderAll();
+    list.push({ id: id(), name: name, active: true }); input.value = ''; await commit(); renderAll();
   }
   function renderEntities() {
     byId('employeeCount').textContent = active(data.employees).length + '/' + MAX_EMPLOYEES;
@@ -518,7 +518,7 @@
   function renderExportEmployees() { byId('exportEmployees').innerHTML = data.employees.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'it'); }).map(function (x) { return '<label class="check"><input type="checkbox" class="export-employee" value="' + x.id + '"> ' + escapeHtml(x.name) + '</label>'; }).join(''); }
 
   function backup() { storage.downloadBackup(data, 'backup-ore-' + today() + '.json'); }
-  function restore(file) { storage.restoreBackup(file, function (parsed) { if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; commit(); renderAll(); resetShift(); }, function () { alert('Backup non valido.'); }); }
+  function restore(file) { storage.restoreBackup(file, async function (parsed) { if (!confirm('Sostituire tutti i dati attuali?')) return; data = parsed; if (!(await commit())) return alert('Il backup è valido, ma non è stato possibile salvarlo.'); renderAll(); resetShift(); }, function () { alert('Backup non valido.'); }); }
   function slug(value) {
     return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'dipendente';
   }
@@ -563,19 +563,24 @@
     byId('quickMonthRows').addEventListener('input', function (event) { autoSelectQuickStore(event); updateQuickMonthTotals(); }); byId('quickMonthRows').addEventListener('change', function (event) { autoSelectQuickStore(event); updateQuickMonthTotals(); }); byId('quickMonthRows').addEventListener('keydown', moveQuickFieldToNextDay);
     byId('aiImportFile').addEventListener('change', function () { if (this.files[0]) loadAiImportPreview(this.files[0]); }); byId('cancelAiImport').addEventListener('click', resetAiImport); byId('confirmAiImport').addEventListener('click', confirmAiImport);
     byId('addEmployee').addEventListener('click', function () { addEntity('employee'); }); byId('addStore').addEventListener('click', function () { addEntity('store'); });
-    byId('page-manage').addEventListener('click', function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; commit(); renderAll(); });
+    byId('page-manage').addEventListener('click', async function (e) { var button = e.target.closest('button[data-kind]'); if (!button) return; var list = button.dataset.kind === 'employee' ? data.employees : data.stores, item = list.find(function (x) { return x.id === button.dataset.id; }); if (button.classList.contains('rename-entity')) { var name = prompt('Nuovo nome:', item.name); if (name && name.trim()) item.name = name.trim(); } else item.active = item.active === false; await commit(); renderAll(); });
     byId('period').addEventListener('change', function () { periodDates(); renderSummary(); }); byId('summaryEmployee').addEventListener('change', renderSummary); byId('fromDate').addEventListener('change', renderSummary); byId('toDate').addEventListener('change', renderSummary);
-    byId('shiftRows').addEventListener('click', function (e) { var idValue = e.target.dataset.id; if (!idValue) return; if (e.target.classList.contains('delete-shift')) { if (confirm('Eliminare il turno?')) { data.shifts = data.shifts.filter(function (x) { return x.id !== idValue; }); commit(); renderSummary(); } } else { var x = data.shifts.find(function (s) { return s.id === idValue; }); editingShiftId = x.id; fillSelect(byId('shiftEmployee'), data.employees, 'Scegli…', x.employeeId, true); fillSelect(byId('shiftStore'), data.stores, 'Scegli…', x.storeId, true); byId('shiftDate').value = x.date; byId('shiftNote').value = x.note || ''; intervals = x.intervals.map(function (i) { return { start: i.start, end: i.end }; }); renderIntervals(); setEntryMode('single'); openPage('entry'); } });
-    byId('absenceRows').addEventListener('click', function (e) { if (!e.target.classList.contains('delete-absence')) return; if (confirm('Eliminare l’assenza?')) { data.absences = data.absences.filter(function (x) { return x.id !== e.target.dataset.id; }); commit(); renderSummary(); } });
+    byId('shiftRows').addEventListener('click', async function (e) { var idValue = e.target.dataset.id; if (!idValue) return; if (e.target.classList.contains('delete-shift')) { if (confirm('Eliminare il turno?')) { data.shifts = data.shifts.filter(function (x) { return x.id !== idValue; }); await commit(); renderSummary(); } } else { var x = data.shifts.find(function (s) { return s.id === idValue; }); editingShiftId = x.id; fillSelect(byId('shiftEmployee'), data.employees, 'Scegli…', x.employeeId, true); fillSelect(byId('shiftStore'), data.stores, 'Scegli…', x.storeId, true); byId('shiftDate').value = x.date; byId('shiftNote').value = x.note || ''; intervals = x.intervals.map(function (i) { return { start: i.start, end: i.end }; }); renderIntervals(); setEntryMode('single'); openPage('entry'); } });
+    byId('absenceRows').addEventListener('click', async function (e) { if (!e.target.classList.contains('delete-absence')) return; if (confirm('Eliminare l’assenza?')) { data.absences = data.absences.filter(function (x) { return x.id !== e.target.dataset.id; }); await commit(); renderSummary(); } });
     byId('calculateTips').addEventListener('click', calculateTips); byId('downloadExcel').addEventListener('click', exportExcel); byId('saveBackup').addEventListener('click', backup); byId('restoreBackup').addEventListener('change', function () { if (this.files[0]) restore(this.files[0]); this.value = ''; });
     byId('exportAll').addEventListener('change', function () { document.querySelectorAll('.export-employee').forEach(function (x) { x.disabled = byId('exportAll').checked; }); });
   }
 
-  function init() {
+  async function init() {
+    data = await storage.loadData();
     byId('shiftDate').value = byId('absenceDate').value = today(); byId('tipsMonth').value = today().slice(0, 7); periodDates(); bind(); renderIntervals(); renderAll();
     byId('systemStatus').textContent = 'Tutto pronto · ' + data.shifts.length + ' turni salvati';
   }
 
   window.__oreTest = { getData: function () { return JSON.parse(JSON.stringify(data)); }, saveShift: saveShift, saveAbsence: saveAbsence, saveQuickMonth: saveQuickMonth, renderQuickMonth: renderQuickMonth, setEntryMode: setEntryMode, confirmAiImport: confirmAiImport, allocateTips: allocateTips };
-  init();
+  init().catch(function (error) {
+    console.error(error);
+    byId('systemStatus').textContent = 'C’è qualcosa da sistemare: dati non caricati';
+    byId('systemStatus').classList.remove('ok');
+  });
 })();
